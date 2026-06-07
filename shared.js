@@ -69,7 +69,7 @@ export function getMonday(d) {
 export async function fetchData() {
   const since = localDate(30);
   const cols = 'date,resting_hr,hrv_last_night,hrv_weekly_avg,hrv_status,sleep_score,sleep_duration_s,rem_sleep_s,deep_sleep_s,light_sleep_s,awake_s,stress_avg,updated_at';
-  const url = `${SB_URL}/rest/v1/daily_metrics?select=${cols}&date=gte.${since}&order=date.asc`;
+  const url = `${SB_URL}/rest/v1/wellness_daily?select=${cols}&date=gte.${since}&order=date.asc`;
   
   const res = await fetch(url, { 
     headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } 
