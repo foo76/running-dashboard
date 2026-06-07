@@ -40,13 +40,12 @@ export const wellnessHTML = `
     </div>
     <div class="legend">
       <div class="legend-item"><div class="legend-dot" style="background:var(--c-hrv)"></div><span id="legend-hrv-label">HRV</span></div>
-      <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-hrv)"></div><span>Baseline</span></div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-rhr)"></div><span>RHR</span></div>
+      <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr);border-style:dashed"></div><span>RHR</span></div>
       <div class="legend-item sleep-legend-item">
         <div class="legend-dot" style="background:#7B9EFF"></div>
         <span>Sleep</span>
         <label class="sleep-toggle-pill" aria-label="Toggle sleep chart type">
-          <input type="checkbox" id="sleep-chart-chk" onchange="wToggleSleepChart()" >
+          <input type="checkbox" id="sleep-chart-chk" onchange="wToggleSleepChart()">
           <div class="sleep-pill-track"></div>
           <div class="sleep-pill-thumb"></div>
         </label>
@@ -148,14 +147,15 @@ export function wDrawChart(rows) {
   rmSk("chart-skel");
 
   const W = wrap.clientWidth || 340, H = wrap.clientHeight || 150;
-  const pT = 10, pB = 20, pL = 30, pR = 10;
+  const pT = 10, pB = 22, pL = 30, pR = 10;
 
-  const hrvKey   = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
+  const hrvKey    = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
   const sleepMode = state.sleepChartMode || 'bar';
+  const todayStr  = localDate(0);
 
-  const hrvs  = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
-  const rhrs  = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
-  const slps  = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
+  const hrvs = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
+  const rhrs = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
+  const slps = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
 
   if (!hrvs.length && !rhrs.length && !slps.length) return;
 
@@ -170,24 +170,37 @@ export function wDrawChart(rows) {
 
   const xS = d3.scaleLinear().domain([0, rows.length - 1]).range([pL, W - pR]);
   const yS = d3.scaleLinear().domain([minV, maxV]).range([H - pB, pT]);
+  const baseline = H - pB; // pixel y of x-axis
 
   const svg = d3.select("#w-chart-wrap").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
 
-  // Sleep bars (drawn first so lines sit on top)
+  // Defs for HRV gradient fill
+  const defs = svg.append("defs");
+  const grad = defs.append("linearGradient").attr("id", "hrv-area-grad").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 1);
+  grad.append("stop").attr("offset", "0%").attr("stop-color", "#00D4C8").attr("stop-opacity", 0.25);
+  grad.append("stop").attr("offset", "100%").attr("stop-color", "#00D4C8").attr("stop-opacity", 0);
+
+  // Sleep bars (full height from x-axis, drawn first)
   if (sleepMode === 'bar') {
     const totalW = W - pL - pR;
-    const barW = Math.max(2, Math.floor(totalW / rows.length) - 2);
+    const barW = Math.max(3, Math.floor(totalW / rows.length) - 3);
     rows.forEach((r, i) => {
       const v = parseFloat(r.sleep_score);
       if (isNaN(v)) return;
       const bx = xS(i) - barW / 2;
       const by = yS(v);
-      const bh = Math.max(1, (H - pB) - by);
+      const bh = Math.max(1, baseline - by);
       svg.append("rect")
          .attr("x", bx).attr("y", by)
          .attr("width", barW).attr("height", bh)
-         .attr("rx", 2)
-         .attr("fill", "#7B9EFF").attr("opacity", 0.35);
+         .attr("rx", 3).attr("ry", 3)
+         .attr("fill", "#3a4a7a").attr("opacity", 0.75);
+      // Brighter top cap
+      svg.append("rect")
+         .attr("x", bx).attr("y", by)
+         .attr("width", barW).attr("height", Math.min(3, bh))
+         .attr("rx", 2).attr("ry", 2)
+         .attr("fill", "#7B9EFF").attr("opacity", 0.9);
     });
   }
 
@@ -207,22 +220,40 @@ export function wDrawChart(rows) {
     .y(d => yS(d.v))
     .curve(d3.curveMonotoneX);
 
+  // HRV area fill
+  const area = d3.area()
+    .defined(d => !isNaN(d.v))
+    .x((d, i) => xS(i))
+    .y0(baseline)
+    .y1(d => yS(d.v))
+    .curve(d3.curveMonotoneX);
+
+  const hrvData = rows.map(r => ({ v: parseFloat(r[hrvKey]) }));
+  svg.append("path").datum(hrvData).attr("d", area).attr("fill", "url(#hrv-area-grad)");
+
   // Baseline (HRV weekly avg dashed)
   const baseData = rows.map(r => ({ v: parseFloat(r.hrv_weekly_avg) }));
   svg.append("path").datum(baseData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-hrv)").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3").attr("opacity", 0.4);
 
   // HRV line
-  const hrvData = rows.map(r => ({ v: parseFloat(r[hrvKey]) }));
   svg.append("path").datum(hrvData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-hrv)").attr("stroke-width", 2.5).attr("stroke-linecap", "round");
 
-  // RHR line
+  // RHR line — dashed
   const rhrData = rows.map(r => ({ v: parseFloat(r.resting_hr) }));
   svg.append("path").datum(rhrData).attr("d", line).attr("fill", "none")
-     .attr("stroke", "var(--c-rhr)").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
+     .attr("stroke", "var(--c-rhr)").attr("stroke-width", 2).attr("stroke-dasharray", "5,3")
+     .attr("stroke-linecap", "round").attr("opacity", 0.85);
 
-  // Sleep line (only if line mode)
+  // RHR dots at each data point
+  rhrData.forEach((d, i) => {
+    if (!isNaN(d.v)) {
+      svg.append("circle").attr("cx", xS(i)).attr("cy", yS(d.v)).attr("r", 2.5).attr("fill", "var(--c-rhr)");
+    }
+  });
+
+  // Sleep line (line mode only)
   if (sleepMode === 'line') {
     const sleepData = rows.map(r => ({ v: parseFloat(r.sleep_score) }));
     svg.append("path").datum(sleepData).attr("d", line).attr("fill", "none")
@@ -233,22 +264,23 @@ export function wDrawChart(rows) {
     }
   }
 
-  // End point dots for HRV and RHR
+  // HRV end dot
   const lastIdx = rows.length - 1;
   if (lastIdx >= 0 && !isNaN(hrvData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(hrvData[lastIdx].v)).attr("r", 3.5).attr("fill", "var(--c-hrv)");
   }
-  if (lastIdx >= 0 && !isNaN(rhrData[lastIdx].v)) {
-    svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(rhrData[lastIdx].v)).attr("r", 3).attr("fill", "var(--c-rhr)");
-  }
 
-  // Date labels
+  // Date labels — highlight today
   const every = rows.length > 14 ? 5 : 2;
   rows.forEach((r, i) => {
     if (i % every === 0 || i === rows.length - 1) {
       const d = new Date(r.date + "T12:00:00");
-      svg.append("text").attr("x", xS(i)).attr("y", H - 4).attr("text-anchor", "middle")
-         .attr("font-size", "7.5px").attr("fill", "var(--dim)").text(d.getDate() + "/" + (d.getMonth() + 1));
+      const isToday = r.date === todayStr;
+      svg.append("text").attr("x", xS(i)).attr("y", H - 5).attr("text-anchor", "middle")
+         .attr("font-size", "7.5px")
+         .attr("fill", isToday ? "var(--c-hrv)" : "var(--dim)")
+         .attr("font-weight", isToday ? "700" : "400")
+         .text(d.getDate() + "/" + (d.getMonth() + 1));
     }
   });
 }
