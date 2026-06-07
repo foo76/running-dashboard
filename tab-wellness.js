@@ -42,7 +42,16 @@ export const wellnessHTML = `
       <div class="legend-item"><div class="legend-dot" style="background:var(--c-hrv)"></div><span id="legend-hrv-label">HRV</span></div>
       <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-hrv)"></div><span>Baseline</span></div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--c-rhr)"></div><span>RHR</span></div>
-      <div class="legend-item"><div class="legend-dot" style="background:#7B9EFF"></div><span>Sleep</span></div>
+      <div class="legend-item sleep-legend-item">
+        <div class="legend-dot" style="background:#7B9EFF"></div>
+        <span>Sleep</span>
+        <label class="sleep-toggle-pill" aria-label="Toggle sleep chart type">
+          <input type="checkbox" id="sleep-chart-chk" onchange="wToggleSleepChart()" >
+          <div class="sleep-pill-track"></div>
+          <div class="sleep-pill-thumb"></div>
+        </label>
+        <span class="sleep-toggle-lbl" id="sleep-toggle-lbl">Line</span>
+      </div>
     </div>
   </div>
 `;
@@ -117,6 +126,14 @@ export function toggleHrvMode() {
 }
 window.toggleHrvMode = toggleHrvMode;
 
+export function wToggleSleepChart() {
+  const checked = document.getElementById('sleep-chart-chk').checked;
+  state.sleepChartMode = checked ? 'line' : 'bar';
+  document.getElementById('sleep-toggle-lbl').textContent = checked ? 'Line' : 'Bar';
+  wSetRange(state.wActiveDay);
+}
+window.wToggleSleepChart = wToggleSleepChart;
+
 export function wSetRange(days) {
   state.wActiveDay = days;
   document.querySelectorAll(".w-range-btn").forEach(b => b.classList.toggle("active", +b.dataset.d === days));
@@ -134,9 +151,11 @@ export function wDrawChart(rows) {
   const pT = 10, pB = 20, pL = 30, pR = 10;
 
   const hrvKey   = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
-  const hrvs     = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
-  const rhrs     = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
-  const slps     = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
+  const sleepMode = state.sleepChartMode || 'bar';
+
+  const hrvs  = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
+  const rhrs  = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
+  const slps  = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
 
   if (!hrvs.length && !rhrs.length && !slps.length) return;
 
@@ -154,6 +173,24 @@ export function wDrawChart(rows) {
 
   const svg = d3.select("#w-chart-wrap").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
 
+  // Sleep bars (drawn first so lines sit on top)
+  if (sleepMode === 'bar') {
+    const totalW = W - pL - pR;
+    const barW = Math.max(2, Math.floor(totalW / rows.length) - 2);
+    rows.forEach((r, i) => {
+      const v = parseFloat(r.sleep_score);
+      if (isNaN(v)) return;
+      const bx = xS(i) - barW / 2;
+      const by = yS(v);
+      const bh = Math.max(1, (H - pB) - by);
+      svg.append("rect")
+         .attr("x", bx).attr("y", by)
+         .attr("width", barW).attr("height", bh)
+         .attr("rx", 2)
+         .attr("fill", "#7B9EFF").attr("opacity", 0.35);
+    });
+  }
+
   // Grid lines
   yS.ticks(5).forEach(t => {
     svg.append("line")
@@ -164,7 +201,6 @@ export function wDrawChart(rows) {
        .attr("font-size", "8px").attr("fill", "var(--dim)").text(t);
   });
 
-  // Single reusable line generator
   const line = d3.line()
     .defined(d => !isNaN(d.v))
     .x((d, i) => xS(i))
@@ -186,21 +222,24 @@ export function wDrawChart(rows) {
   svg.append("path").datum(rhrData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-rhr)").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
 
-  // Sleep Score line
-  const sleepData = rows.map(r => ({ v: parseFloat(r.sleep_score) }));
-  svg.append("path").datum(sleepData).attr("d", line).attr("fill", "none")
-     .attr("stroke", "#7B9EFF").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
+  // Sleep line (only if line mode)
+  if (sleepMode === 'line') {
+    const sleepData = rows.map(r => ({ v: parseFloat(r.sleep_score) }));
+    svg.append("path").datum(sleepData).attr("d", line).attr("fill", "none")
+       .attr("stroke", "#7B9EFF").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
+    const lastIdx = rows.length - 1;
+    if (lastIdx >= 0 && !isNaN(sleepData[lastIdx].v)) {
+      svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(sleepData[lastIdx].v)).attr("r", 3).attr("fill", "#7B9EFF");
+    }
+  }
 
-  // End point dots
+  // End point dots for HRV and RHR
   const lastIdx = rows.length - 1;
   if (lastIdx >= 0 && !isNaN(hrvData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(hrvData[lastIdx].v)).attr("r", 3.5).attr("fill", "var(--c-hrv)");
   }
   if (lastIdx >= 0 && !isNaN(rhrData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(rhrData[lastIdx].v)).attr("r", 3).attr("fill", "var(--c-rhr)");
-  }
-  if (lastIdx >= 0 && !isNaN(sleepData[lastIdx].v)) {
-    svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(sleepData[lastIdx].v)).attr("r", 3).attr("fill", "#7B9EFF");
   }
 
   // Date labels
