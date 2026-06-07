@@ -57,7 +57,7 @@ export function renderWellness(rows) {
   const today = rows.find(r => r.date === todayStr) || rows[rows.length - 1];
   if (!today) return;
 
-  const hrvVal = rmSk("hrv-val");
+  rmSk("hrv-val");
   const rhrVal = rmSk("rhr-val"); if (rhrVal) rhrVal.textContent = today.resting_hr || "—";
   const slpVal = rmSk("sleep-val"); if (slpVal) slpVal.textContent = today.sleep_score || "—";
 
@@ -133,18 +133,21 @@ export function wDrawChart(rows) {
   const W = wrap.clientWidth || 340, H = wrap.clientHeight || 150;
   const pT = 10, pB = 20, pL = 30, pR = 10;
 
-  const hrvKey = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
-  const hrvs   = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
-  const rhrs   = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
-  const slps   = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
+  const hrvKey   = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
+  const hrvs     = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
+  const rhrs     = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
+  const slps     = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
 
   if (!hrvs.length && !rhrs.length && !slps.length) return;
 
-  // Scale: HRV ~40-80, RHR ~35-60, Sleep 0-100 — normalise sleep to same axis
-  const minH = Math.min(...hrvs, 40), maxH = Math.max(...hrvs, 80);
-  const minR = Math.min(...rhrs, 40), maxR = Math.max(...rhrs, 80);
-  const minS = Math.min(...slps, 40), maxS = Math.max(...slps, 100);
-  const minV = Math.min(minH, minR, minS) - 5, maxV = Math.max(maxH, maxR, maxS) + 5;
+  const minH = hrvs.length ? Math.min(...hrvs) : 40;
+  const maxH = hrvs.length ? Math.max(...hrvs) : 80;
+  const minR = rhrs.length ? Math.min(...rhrs) : 40;
+  const maxR = rhrs.length ? Math.max(...rhrs) : 80;
+  const minS = slps.length ? Math.min(...slps) : 40;
+  const maxS = slps.length ? Math.max(...slps) : 100;
+  const minV = Math.min(minH, minR, minS) - 5;
+  const maxV = Math.max(maxH, maxR, maxS) + 5;
 
   const xS = d3.scaleLinear().domain([0, rows.length - 1]).range([pL, W - pR]);
   const yS = d3.scaleLinear().domain([minV, maxV]).range([H - pB, pT]);
@@ -161,37 +164,42 @@ export function wDrawChart(rows) {
        .attr("font-size", "8px").attr("fill", "var(--dim)").text(t);
   });
 
-  const mkLine = () => d3.line().defined(d => !isNaN(d.v)).x((d, i) => xS(i)).y(d => yS(d.v)).curve(d3.curveMonotoneX);
+  // Single reusable line generator
+  const line = d3.line()
+    .defined(d => !isNaN(d.v))
+    .x((d, i) => xS(i))
+    .y(d => yS(d.v))
+    .curve(d3.curveMonotoneX);
 
   // Baseline (HRV weekly avg dashed)
   const baseData = rows.map(r => ({ v: parseFloat(r.hrv_weekly_avg) }));
-  svg.append("path").datum(baseData).attr("d", mkLine()()).attr("fill", "none")
+  svg.append("path").datum(baseData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-hrv)").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3").attr("opacity", 0.4);
 
   // HRV line
   const hrvData = rows.map(r => ({ v: parseFloat(r[hrvKey]) }));
-  svg.append("path").datum(hrvData).attr("d", mkLine()()).attr("fill", "none")
+  svg.append("path").datum(hrvData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-hrv)").attr("stroke-width", 2.5).attr("stroke-linecap", "round");
 
   // RHR line
   const rhrData = rows.map(r => ({ v: parseFloat(r.resting_hr) }));
-  svg.append("path").datum(rhrData).attr("d", mkLine()()).attr("fill", "none")
+  svg.append("path").datum(rhrData).attr("d", line).attr("fill", "none")
      .attr("stroke", "var(--c-rhr)").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
 
   // Sleep Score line
   const sleepData = rows.map(r => ({ v: parseFloat(r.sleep_score) }));
-  svg.append("path").datum(sleepData).attr("d", mkLine()()).attr("fill", "none")
+  svg.append("path").datum(sleepData).attr("d", line).attr("fill", "none")
      .attr("stroke", "#7B9EFF").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
 
   // End point dots
   const lastIdx = rows.length - 1;
-  if (!isNaN(hrvData[lastIdx].v)) {
+  if (lastIdx >= 0 && !isNaN(hrvData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(hrvData[lastIdx].v)).attr("r", 3.5).attr("fill", "var(--c-hrv)");
   }
-  if (!isNaN(rhrData[lastIdx].v)) {
+  if (lastIdx >= 0 && !isNaN(rhrData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(rhrData[lastIdx].v)).attr("r", 3).attr("fill", "var(--c-rhr)");
   }
-  if (!isNaN(sleepData[lastIdx].v)) {
+  if (lastIdx >= 0 && !isNaN(sleepData[lastIdx].v)) {
     svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(sleepData[lastIdx].v)).attr("r", 3).attr("fill", "#7B9EFF");
   }
 
