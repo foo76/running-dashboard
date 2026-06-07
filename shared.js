@@ -1,286 +1,202 @@
-import { state, localDate, rmSk, scoreRow } from './shared.js';
+export const SB_URL = "https://krgbagjignvbnrgybdos.supabase.co";
+export const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
 
-export const wellnessHTML = `
-  <div class="sync-row" id="sync-time"></div>
-  <div class="metrics-grid">
-    <div class="metric-card hrv tappable" onclick="toggleHrvMode()">
-      <span class="metric-label">HRV</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="hrv-val">—</span>
-        <span class="metric-unit">ms</span>
-        <span class="metric-arrow" id="hrv-arrow"></span>
-      </div>
-      <div class="hrv-mode-label" id="hrv-mode-label">LAST NIGHT</div>
-    </div>
-    <div class="metric-card rhr">
-      <span class="metric-label">Resting HR</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="rhr-val">—</span>
-        <span class="metric-unit">bpm</span>
-      </div>
-    </div>
-    <div class="metric-card sleep">
-      <span class="metric-label">Sleep Score</span>
-      <div class="metric-value-wrap">
-        <span class="metric-value sk" id="sleep-val">—</span>
-        <span class="metric-unit">/100</span>
-      </div>
-    </div>
-  </div>
+export const TABS = ['dashboard', 'wellness', 'readiness', 'volume', 'load'];
+export const TAB_SUBTITLES = {
+  dashboard: "Dashboard",
+  wellness:  "Wellness Metrics",
+  readiness: "Daily Readiness Score",
+  volume:    "Running Volume",
+  load:      "Training Load"
+};
 
-  <div class="chart-panel">
-    <div class="w-range-wrap">
-      <button class="w-range-btn active" data-d="7"  onclick="wSetRange(7)">7D</button>
-      <button class="w-range-btn"        data-d="14" onclick="wSetRange(14)">14D</button>
-      <button class="w-range-btn"        data-d="30" onclick="wSetRange(30)">30D</button>
-    </div>
-    <div class="chart-inner">
-      <div class="chart-skel sk" id="chart-skel"></div>
-      <div id="w-chart-wrap"></div>
-    </div>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--c-hrv)"></div><span id="legend-hrv-label">HRV</span></div>
-      <div class="legend-item"><div class="legend-dash" style="border-color:var(--c-rhr);border-style:dashed"></div><span>RHR</span></div>
-      <div class="legend-item sleep-legend-item">
-        <div class="legend-dot" style="background:#7B9EFF"></div>
-        <span>Sleep</span>
-        <label class="sleep-toggle-pill" aria-label="Toggle sleep chart type">
-          <input type="checkbox" id="sleep-chart-chk" onchange="wToggleSleepChart()">
-          <div class="sleep-pill-track"></div>
-          <div class="sleep-pill-thumb"></div>
-        </label>
-        <span class="sleep-toggle-lbl" id="sleep-toggle-lbl">Line</span>
-      </div>
-    </div>
-  </div>
-`;
+// Global state shared across modules
+export const state = {
+  allRows: [],
+  currentTab: 'dashboard',
+  hintShown: true,
+  dashboardRendered: false,
+  volLoaded: false,
+  loadRendered: false,
+  readinessRendered: false,
+  hrvMode: 'last_night',       // 'last_night' | 'weekly_avg'
+  sleepChartMode: 'bar',       // 'bar' | 'line'
+  wActiveDay: 7,
+  rActiveDay: 7,
+  volPeriodMonths: 3,
+  volScheme: 'heat',
+  volRawRows: [],
+  volFetching: false,
+  yoyData: null,
+  yoyFetched: false,
+  yoyHidden: new Set()
+};
 
-export function renderWellness(rows) {
-  const container = document.getElementById('panel-wellness');
-  if (container.innerHTML.trim() === '') {
-    container.innerHTML = wellnessHTML;
-  }
+// Utility functions
+export const localDate = (n = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+};
 
-  const todayStr = localDate(0);
-  const today = rows.find(r => r.date === todayStr) || rows[rows.length - 1];
-  if (!today) return;
+export const hm = s => ({
+  h: Math.floor(s / 3600),
+  m: Math.floor((s % 3600) / 60)
+});
 
-  rmSk("hrv-val");
-  const rhrVal = rmSk("rhr-val"); if (rhrVal) rhrVal.textContent = today.resting_hr || "—";
-  const slpVal = rmSk("sleep-val"); if (slpVal) slpVal.textContent = today.sleep_score || "—";
+export const hmStr = s => {
+  const { h, m } = hm(s);
+  return h + 'h' + String(m).padStart(2, '0');
+};
 
-  applyHrvMode(rows);
+export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-  const syncEl = document.getElementById("sync-time");
-  if (syncEl && today.updated_at) {
-    const d = new Date(today.updated_at);
-    syncEl.textContent = "Updated " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
+export const rmSk = id => {
+  const e = document.getElementById(id);
+  if (e) { e.classList.remove("sk", "sk-b"); }
+  return e;
+};
 
-  wSetRange(state.wActiveDay);
+export const fmtDate = d =>
+  d.getFullYear() + '-' +
+  String(d.getMonth() + 1).padStart(2, '0') + '-' +
+  String(d.getDate()).padStart(2, '0');
+
+export function getMonday(d) {
+  const dt = new Date(+d);
+  dt.setHours(0, 0, 0, 0);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+  return dt;
 }
 
-export function applyHrvMode(rows = state.allRows) {
-  const isAvg = (state.hrvMode === 'weekly_avg');
-  const todayStr = localDate(0), yestStr = localDate(1);
-  const today = rows.find(r => r.date === todayStr) || rows[rows.length - 1];
-  const yest  = rows.find(r => r.date === yestStr)  || (rows.length >= 2 ? rows[rows.length - 2] : null);
+// Shared Data Fetching
+export async function fetchData() {
+  const since = localDate(30);
+  const cols = 'date,resting_hr,hrv_last_night,hrv_weekly_avg,hrv_status,sleep_score,sleep_duration_s,rem_sleep_s,deep_sleep_s,light_sleep_s,awake_s,stress_avg,updated_at';
+  const url = SB_URL + '/rest/v1/wellness_daily?select=' + cols + '&date=gte.' + since + '&order=date.asc';
 
-  const valEl    = document.getElementById('hrv-val');
-  const arrowEl  = document.getElementById('hrv-arrow');
-  const modeEl   = document.getElementById('hrv-mode-label');
-  const legendEl = document.getElementById('legend-hrv-label');
-
-  if (!valEl) return;
-
-  if (isAvg) {
-    const avg = today ? parseFloat(today.hrv_weekly_avg) : null;
-    valEl.textContent    = (avg !== null && !isNaN(avg)) ? avg.toFixed(1) : '—';
-    valEl.style.color    = 'var(--c-hrv)';
-    arrowEl.textContent  = '';
-    modeEl.textContent   = '7D AVG';
-    legendEl.textContent = 'HRV 7D';
-  } else {
-    const hrv  = today ? parseFloat(today.hrv_last_night) : null;
-    const hrvP = yest  ? parseFloat(yest.hrv_last_night)  : null;
-    const dir  = (hrv && hrvP && !isNaN(hrv) && !isNaN(hrvP)) ? (hrv >= hrvP ? '↑' : '↓') : null;
-    valEl.textContent  = (hrv !== null && !isNaN(hrv)) ? hrv.toFixed(1) : '—';
-    valEl.style.color  = (!dir || dir === '↑') ? '#00D4C8' : '#FF5A6E';
-    if (dir) {
-      arrowEl.textContent = dir;
-      arrowEl.className   = 'metric-arrow ' + (dir === '↑' ? 'good' : 'bad');
-    } else {
-      arrowEl.textContent = '';
-    }
-    modeEl.textContent   = 'LAST NIGHT';
-    legendEl.textContent = 'HRV';
-  }
-}
-
-export function toggleHrvMode() {
-  if (!state.allRows.length) return;
-  state.hrvMode = (state.hrvMode === 'last_night') ? 'weekly_avg' : 'last_night';
-  applyHrvMode();
-  wSetRange(state.wActiveDay);
-}
-window.toggleHrvMode = toggleHrvMode;
-
-export function wToggleSleepChart() {
-  const checked = document.getElementById('sleep-chart-chk').checked;
-  state.sleepChartMode = checked ? 'line' : 'bar';
-  document.getElementById('sleep-toggle-lbl').textContent = checked ? 'Line' : 'Bar';
-  wSetRange(state.wActiveDay);
-}
-window.wToggleSleepChart = wToggleSleepChart;
-
-export function wSetRange(days) {
-  state.wActiveDay = days;
-  document.querySelectorAll(".w-range-btn").forEach(b => b.classList.toggle("active", +b.dataset.d === days));
-  wDrawChart(state.allRows.slice(-days));
-}
-window.wSetRange = wSetRange;
-
-export function wDrawChart(rows) {
-  const wrap = document.getElementById("w-chart-wrap");
-  if (!wrap) return;
-  d3.select("#w-chart-wrap").selectAll("*").remove();
-  rmSk("chart-skel");
-
-  const W = wrap.clientWidth || 340, H = wrap.clientHeight || 150;
-  const pT = 10, pB = 22, pL = 30, pR = 10;
-
-  const hrvKey    = (state.hrvMode === 'weekly_avg') ? 'hrv_weekly_avg' : 'hrv_last_night';
-  const sleepMode = state.sleepChartMode || 'bar';
-  const todayStr  = localDate(0);
-
-  const hrvs = rows.map(r => parseFloat(r[hrvKey])).filter(v => !isNaN(v));
-  const rhrs = rows.map(r => parseFloat(r.resting_hr)).filter(v => !isNaN(v));
-  const slps = rows.map(r => parseFloat(r.sleep_score)).filter(v => !isNaN(v));
-
-  if (!hrvs.length && !rhrs.length && !slps.length) return;
-
-  const minH = hrvs.length ? Math.min(...hrvs) : 40;
-  const maxH = hrvs.length ? Math.max(...hrvs) : 80;
-  const minR = rhrs.length ? Math.min(...rhrs) : 40;
-  const maxR = rhrs.length ? Math.max(...rhrs) : 80;
-  const minS = slps.length ? Math.min(...slps) : 40;
-  const maxS = slps.length ? Math.max(...slps) : 100;
-  const minV = Math.min(minH, minR, minS) - 5;
-  const maxV = Math.max(maxH, maxR, maxS) + 5;
-
-  const xS = d3.scaleLinear().domain([0, rows.length - 1]).range([pL, W - pR]);
-  const yS = d3.scaleLinear().domain([minV, maxV]).range([H - pB, pT]);
-  const baseline = H - pB; // pixel y of x-axis
-
-  const svg = d3.select("#w-chart-wrap").append("svg").attr("viewBox", `0 0 ${W} ${H}`);
-
-  // Defs for HRV gradient fill
-  const defs = svg.append("defs");
-  const grad = defs.append("linearGradient").attr("id", "hrv-area-grad").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 1);
-  grad.append("stop").attr("offset", "0%").attr("stop-color", "#00D4C8").attr("stop-opacity", 0.25);
-  grad.append("stop").attr("offset", "100%").attr("stop-color", "#00D4C8").attr("stop-opacity", 0);
-
-  // Sleep bars (full height from x-axis, drawn first)
-  if (sleepMode === 'bar') {
-    const totalW = W - pL - pR;
-    const barW = Math.max(3, Math.floor(totalW / rows.length) - 3);
-    rows.forEach((r, i) => {
-      const v = parseFloat(r.sleep_score);
-      if (isNaN(v)) return;
-      const bx = xS(i) - barW / 2;
-      const by = yS(v);
-      const bh = Math.max(1, baseline - by);
-      svg.append("rect")
-         .attr("x", bx).attr("y", by)
-         .attr("width", barW).attr("height", bh)
-         .attr("rx", 3).attr("ry", 3)
-         .attr("fill", "#3a4a7a").attr("opacity", 0.75);
-      // Brighter top cap
-      svg.append("rect")
-         .attr("x", bx).attr("y", by)
-         .attr("width", barW).attr("height", Math.min(3, bh))
-         .attr("rx", 2).attr("ry", 2)
-         .attr("fill", "#7B9EFF").attr("opacity", 0.9);
-    });
-  }
-
-  // Grid lines
-  yS.ticks(5).forEach(t => {
-    svg.append("line")
-       .attr("x1", pL).attr("x2", W - pR).attr("y1", yS(t)).attr("y2", yS(t))
-       .attr("stroke", "var(--border)").attr("stroke-width", 0.5).attr("stroke-dasharray", "2,2");
-    svg.append("text")
-       .attr("x", pL - 5).attr("y", yS(t) + 3).attr("text-anchor", "end")
-       .attr("font-size", "8px").attr("fill", "var(--dim)").text(t);
+  const res = await fetch(url, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   });
+  if (!res.ok) throw new Error('API error: ' + res.status);
+  return await res.json();
+}
 
-  const line = d3.line()
-    .defined(d => !isNaN(d.v))
-    .x((d, i) => xS(i))
-    .y(d => yS(d.v))
-    .curve(d3.curveMonotoneX);
+// Tab switching logic
+export async function switchTab(tab) {
+  if (tab === state.currentTab) return;
+  state.currentTab = tab;
 
-  // HRV area fill
-  const area = d3.area()
-    .defined(d => !isNaN(d.v))
-    .x((d, i) => xS(i))
-    .y0(baseline)
-    .y1(d => yS(d.v))
-    .curve(d3.curveMonotoneX);
+  const idx = TABS.indexOf(tab);
+  const pct = idx * (100 / TABS.length);
+  document.getElementById('panels-slider').style.transform = 'translateX(-' + pct + '%)';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
 
-  const hrvData = rows.map(r => ({ v: parseFloat(r[hrvKey]) }));
-  svg.append("path").datum(hrvData).attr("d", area).attr("fill", "url(#hrv-area-grad)");
+  updateDots(tab);
 
-  // Baseline (HRV weekly avg dashed)
-  const baseData = rows.map(r => ({ v: parseFloat(r.hrv_weekly_avg) }));
-  svg.append("path").datum(baseData).attr("d", line).attr("fill", "none")
-     .attr("stroke", "var(--c-hrv)").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3").attr("opacity", 0.4);
+  // Lazy load and render each tab
+  if (tab === 'dashboard' && !state.dashboardRendered) {
+    state.dashboardRendered = true;
+    const { renderDashboard } = await import('./tab-dashboard.js');
+    renderDashboard(state.allRows);
+  }
+  if (tab === 'wellness' && state.allRows.length) {
+    const { wSetRange } = await import('./tab-wellness.js');
+    requestAnimationFrame(() => wSetRange(state.wActiveDay));
+  }
+  if (tab === 'readiness' && !state.readinessRendered && state.allRows.length) {
+    state.readinessRendered = true;
+    const { renderReadiness } = await import('./tab-readiness.js');
+    renderReadiness(state.allRows);
+  }
+  if (tab === 'volume' && !state.volLoaded) {
+    state.volLoaded = true;
+    const { fetchAndRenderVolume } = await import('./tab-volume.js');
+    fetchAndRenderVolume();
+  }
+  if (tab === 'load' && !state.loadRendered) {
+    state.loadRendered = true;
+    const { renderLoad } = await import('./tab-load.js');
+    renderLoad(state.allRows);
+  }
+}
 
-  // HRV line
-  svg.append("path").datum(hrvData).attr("d", line).attr("fill", "none")
-     .attr("stroke", "var(--c-hrv)").attr("stroke-width", 2.5).attr("stroke-linecap", "round");
+export function updateDots(tab) {
+  const idx = TABS.indexOf(tab);
+  document.querySelectorAll('.swipe-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+}
 
-  // RHR line — dashed
-  const rhrData = rows.map(r => ({ v: parseFloat(r.resting_hr) }));
-  svg.append("path").datum(rhrData).attr("d", line).attr("fill", "none")
-     .attr("stroke", "var(--c-rhr)").attr("stroke-width", 2).attr("stroke-dasharray", "5,3")
-     .attr("stroke-linecap", "round").attr("opacity", 0.85);
+export function hideHint() {
+  if (!state.hintShown) return;
+  state.hintShown = false;
+  document.getElementById('swipe-hint').classList.add('hidden');
+}
 
-  // RHR dots at each data point
-  rhrData.forEach((d, i) => {
-    if (!isNaN(d.v)) {
-      svg.append("circle").attr("cx", xS(i)).attr("cy", yS(d.v)).attr("r", 2.5).attr("fill", "var(--c-rhr)");
+// Swipe detection initialization
+export function initSwipe() {
+  const wrap = document.getElementById('panels-wrap');
+  let tx = 0, ty = 0, locked = false, cancelled = false;
+  const MIN_X = 50;
+  const MAX_Y = 80;
+
+  wrap.addEventListener('touchstart', e => {
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+    locked = false;
+    cancelled = false;
+  }, { passive: true });
+
+  wrap.addEventListener('touchmove', e => {
+    if (cancelled) return;
+    const dx = e.touches[0].clientX - tx;
+    const dy = e.touches[0].clientY - ty;
+    if (!locked) {
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { cancelled = true; return; }
+      if (Math.abs(dx) > 10) locked = true;
     }
-  });
+    if (locked && Math.abs(dy) < MAX_Y) e.preventDefault();
+  }, { passive: false });
 
-  // Sleep line (line mode only)
-  if (sleepMode === 'line') {
-    const sleepData = rows.map(r => ({ v: parseFloat(r.sleep_score) }));
-    svg.append("path").datum(sleepData).attr("d", line).attr("fill", "none")
-       .attr("stroke", "#7B9EFF").attr("stroke-width", 2).attr("stroke-linecap", "round").attr("opacity", 0.8);
-    const lastIdx = rows.length - 1;
-    if (lastIdx >= 0 && !isNaN(sleepData[lastIdx].v)) {
-      svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(sleepData[lastIdx].v)).attr("r", 3).attr("fill", "#7B9EFF");
-    }
+  wrap.addEventListener('touchend', e => {
+    if (cancelled || !locked) return;
+    const dx = e.changedTouches[0].clientX - tx;
+    const dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dy) >= MAX_Y) return;
+    const i = TABS.indexOf(state.currentTab);
+    if (dx < -MIN_X && i < TABS.length - 1) { switchTab(TABS[i + 1]); hideHint(); }
+    if (dx >  MIN_X && i > 0)               { switchTab(TABS[i - 1]); hideHint(); }
+  }, { passive: true });
+}
+
+// Score Calculation logic (shared by Wellness and Readiness)
+export function scoreRow(r, rows) {
+  const hrv  = parseFloat(r.hrv_last_night);
+  const hrvA = parseFloat(r.hrv_weekly_avg);
+  const rhr  = parseFloat(r.resting_hr);
+  const slp  = parseFloat(r.sleep_score);
+  const str  = parseFloat(r.stress_avg);
+
+  let sHrv = 50;
+  if (hrv && hrvA) {
+    const ratio = hrv / hrvA;
+    sHrv = ratio >= 1   ? 90 + Math.min(10, (ratio - 1) * 50) :
+           ratio >= 0.9 ? 75 + (ratio - 0.9) * 150 :
+           ratio >= 0.8 ? 50 + (ratio - 0.8) * 250 :
+                          ratio * 60;
   }
 
-  // HRV end dot
-  const lastIdx = rows.length - 1;
-  if (lastIdx >= 0 && !isNaN(hrvData[lastIdx].v)) {
-    svg.append("circle").attr("cx", xS(lastIdx)).attr("cy", yS(hrvData[lastIdx].v)).attr("r", 3.5).attr("fill", "var(--c-hrv)");
-  }
+  const sSlp = slp || 50;
+  const sRhr = rhr ? clamp(100 - (rhr - 45) * 2.5, 0, 100) : 50;
+  const sStr = str ? clamp(100 - str, 0, 100) : 50;
 
-  // Date labels — highlight today
-  const every = rows.length > 14 ? 5 : 2;
-  rows.forEach((r, i) => {
-    if (i % every === 0 || i === rows.length - 1) {
-      const d = new Date(r.date + "T12:00:00");
-      const isToday = r.date === todayStr;
-      svg.append("text").attr("x", xS(i)).attr("y", H - 5).attr("text-anchor", "middle")
-         .attr("font-size", "7.5px")
-         .attr("fill", isToday ? "var(--c-hrv)" : "var(--dim)")
-         .attr("font-weight", isToday ? "700" : "400")
-         .text(d.getDate() + "/" + (d.getMonth() + 1));
-    }
-  });
+  return {
+    hrv:       Math.round(sHrv),
+    sleep:     Math.round(sSlp),
+    rhr:       Math.round(sRhr),
+    stress:    Math.round(sStr),
+    composite: Math.round(sHrv * 0.45 + sSlp * 0.25 + sRhr * 0.2 + sStr * 0.1)
+  };
 }
