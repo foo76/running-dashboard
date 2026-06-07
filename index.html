@@ -12,13 +12,16 @@
   <header class="app-header">
     <div class="header-left">
       <div class="brand">MyHealthDB</div>
-      <div class="subtitle" id="tab-subtitle">Wellness Metrics</div>
+      <div class="subtitle" id="tab-subtitle">Dashboard</div>
     </div>
     <div class="date-badge" id="current-date"></div>
   </header>
 
   <nav class="tab-bar">
-    <button class="tab-btn active" id="tab-wellness" onclick="switchTab('wellness')">
+    <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">
+      <span class="tab-icon">📊</span> Dashboard
+    </button>
+    <button class="tab-btn" id="tab-wellness" onclick="switchTab('wellness')">
       <span class="tab-icon">✨</span> Wellness
     </button>
     <button class="tab-btn" id="tab-readiness" onclick="switchTab('readiness')">
@@ -27,24 +30,35 @@
     <button class="tab-btn" id="tab-volume" onclick="switchTab('volume')">
       <span class="tab-icon">🏃</span> Volume
     </button>
+    <button class="tab-btn" id="tab-load" onclick="switchTab('load')">
+      <span class="tab-icon">📈</span> Load
+    </button>
   </nav>
 
   <div class="swipe-hint" id="swipe-hint">
     <div class="swipe-dot active"></div>
     <div class="swipe-dot"></div>
     <div class="swipe-dot"></div>
+    <div class="swipe-dot"></div>
+    <div class="swipe-dot"></div>
   </div>
 
   <main class="panels-wrap" id="panels-wrap">
     <div class="panels-slider" id="panels-slider">
+      <!-- Dashboard Panel -->
+      <section class="tab-panel" id="panel-dashboard"></section>
+
       <!-- Wellness Panel -->
       <section class="tab-panel" id="panel-wellness"></section>
-      
+
       <!-- Readiness Panel -->
       <section class="tab-panel" id="panel-readiness"></section>
-      
+
       <!-- Volume Panel -->
       <section class="tab-panel" id="panel-volume"></section>
+
+      <!-- Load Panel -->
+      <section class="tab-panel" id="panel-load"></section>
     </div>
   </main>
 
@@ -56,16 +70,16 @@
 
   <script type="module">
     import { state, fetchData, switchTab, initSwipe, localDate, scoreRow } from './shared.js';
+    import { renderDashboard } from './tab-dashboard.js';
     import { renderWellness } from './tab-wellness.js';
 
-    // Make switchTab available globally for onclick handlers
     window.switchTab = switchTab;
 
     async function init() {
       // Set current date
       const d = new Date();
-      document.getElementById('current-date').textContent = d.toLocaleDateString('en-GB', { 
-        weekday: 'short', day: 'numeric', month: 'short' 
+      document.getElementById('current-date').textContent = d.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short'
       });
 
       // Initialize swipe gestures
@@ -74,22 +88,19 @@
       try {
         // Fetch initial data
         state.allRows = await fetchData();
-        
+
         // Pre-calculate scores for all rows
-        state.allRows.forEach(r => { 
-          r._score = scoreRow(r, state.allRows).composite; 
+        state.allRows.forEach(r => {
+          r._score = scoreRow(r, state.allRows).composite;
         });
 
-        // Initial render (Wellness)
-        renderWellness(state.allRows);
+        // Initial render (Dashboard)
+        renderDashboard(state.allRows);
+
       } catch (e) {
         console.error('Initialization error:', e);
-        const container = document.getElementById('panel-wellness');
-        container.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;padding:24px;text-align:center">
-            <span style="font-size:1.8rem">⚠️</span>
-            <p style="color:var(--low);font-size:.8rem">${e.message}</p>
-          </div>`;
+        const container = document.getElementById('panel-dashboard');
+        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;padding:24px;text-align:center"><span style="font-size:1.8rem">⚠️</span><p style="color:var(--low);font-size:.8rem">' + e.message + '</p></div>';
       }
     }
 
