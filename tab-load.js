@@ -6,91 +6,203 @@ const CTL_K = 1 - Math.exp(-1 / CTL_DAYS);
 const ATL_K = 1 - Math.exp(-1 / ATL_DAYS);
 
 const PERIODS = [
-  { label: '1M',  months: 1  },
-  { label: '3M',  months: 3  },
-  { label: '6M',  months: 6  },
-  { label: '12M', months: 12 },
-  { label: '24M', months: 24 }
+  { label: '30 Days',   days: 30  },
+  { label: '60 Days',   days: 60  },
+  { label: '6 Months',  days: 182 },
+  { label: 'Year',      days: 365 }
 ];
-const DEFAULT_PERIOD = 6;
+const DEFAULT_DAYS = 60;
 
-const C_CTL  = '#A070D0';
-const C_ATL  = '#E08030';
-const C_TSB  = '#E0D060';
-const C_LOAD = '#C8A0E8';
-
-const sportLabel = t => {
-  if (!t) return 'Activity';
-  const s = t.toLowerCase();
-  if (s.includes('run'))  return '🏃 Run';
-  if (s.includes('ride') || s.includes('cycl')) return '🚴 Ride';
-  if (s.includes('swim')) return '🏊 Swim';
-  if (s.includes('walk')) return '🚶 Walk';
-  if (s.includes('hike')) return '🥾 Hike';
-  return '⚡ ' + t;
-};
+const C_CTL = '#00D4C8';   // cyan  — Fitness
+const C_ATL = '#8B5CF6';   // purple — Fatigue
 
 let ls = {
-  activePeriod: DEFAULT_PERIOD,
+  activeDays: DEFAULT_DAYS,
   allActivities: [],
   pmcSeries: null,
   fetched: false
 };
 
-// ── Inject CSS once ────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────
 function injectStyles() {
   if (document.getElementById('load-tab-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'load-tab-styles';
-  style.textContent = `
-    #panel-load { padding:10px 16px 24px; display:flex; flex-direction:column; gap:10px; }
+  const s = document.createElement('style');
+  s.id = 'load-tab-styles';
+  s.textContent = `
+    #panel-load {
+      padding: 20px 18px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: var(--bg, #0D1117);
+      min-height: 100%;
+    }
 
-    .load-header { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px; }
-    .load-eyebrow { font-size:.56rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#5A6A88; }
-    .load-pmc-vals { display:flex; gap:14px; flex-wrap:wrap; margin-top:4px; }
-    .load-val-item { font-size:.72rem; font-weight:600; color:#5A6A88; }
-    .load-val-item span { font-size:1.05rem; font-weight:900; margin-left:3px; }
-    .load-val-item.ctl span { color:${C_CTL}; }
-    .load-val-item.atl span { color:${C_ATL}; }
-    .load-val-item.tsb span { color:${C_TSB}; }
+    .load-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #CDD8EE;
+      margin-bottom: 18px;
+      letter-spacing: -.01em;
+    }
 
-    .load-period-wrap { display:flex; background:#0C1220; border:1px solid #1A2640; border-radius:10px; padding:2px; gap:2px; }
-    .load-period-btn { padding:5px 10px; font-size:.62rem; font-weight:700; border:none; border-radius:8px; background:transparent; color:#5A6A88; cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent; transition:all 200ms; }
-    .load-period-btn.active { background:#101828; color:${C_CTL}; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+    /* Period tabs */
+    .load-period-wrap {
+      display: flex;
+      background: #161D2E;
+      border: 1px solid #1E2A42;
+      border-radius: 14px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 28px;
+    }
+    .load-period-btn {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: .72rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 11px;
+      background: transparent;
+      color: #5A6A88;
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 200ms;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .load-period-btn.active {
+      background: #232E48;
+      color: #CDD8EE;
+      box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    }
 
-    .load-card { background:#101828; border:1px solid #1A2640; border-radius:18px; padding:14px 8px 12px; display:flex; flex-direction:column; gap:10px; }
-    .load-chart-outer { width:100%; height:260px; position:relative; }
-    .load-chart-outer svg { position:absolute; inset:0; width:100%; height:100%; display:block; overflow:visible; }
+    /* Big metric row */
+    .load-metrics-row {
+      display: flex;
+      gap: 36px;
+      margin-bottom: 22px;
+      align-items: flex-start;
+    }
+    .load-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .load-metric-label {
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .02em;
+      text-transform: none;
+    }
+    .load-metric-label.ctl { color: ${C_CTL}; }
+    .load-metric-label.atl { color: ${C_ATL}; }
+    .load-metric-main-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .load-metric-big {
+      font-size: 3rem;
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: #CDD8EE;
+    }
+    .load-metric-prev {
+      font-size: .85rem;
+      font-weight: 600;
+      color: #5A6A88;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .load-metric-prev .arrow-down { color: #FF5A6E; }
+    .load-metric-prev .arrow-up   { color: #00D4C8; }
 
-    .load-legend { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
-    .load-legend-item { display:flex; align-items:center; gap:5px; font-size:.6rem; color:#5A6A88; font-weight:500; }
-    .load-leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-    .load-leg-bar { width:10px; height:6px; border-radius:2px; flex-shrink:0; }
+    /* Chart */
+    .load-chart-outer {
+      width: 100%;
+      height: 280px;
+      position: relative;
+    }
+    .load-chart-outer svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
 
-    .load-tt { position:fixed; pointer-events:none; opacity:0; background:rgba(12,18,32,0.97); border:1px solid #1A2640; border-radius:10px; padding:10px 12px; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.7); transition:opacity 120ms ease; min-width:180px; backdrop-filter:blur(6px); }
-    .load-tt.vis { opacity:1; }
-    .ltt-date { font-size:.65rem; font-weight:700; color:#CDD8EE; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid #1A2640; }
-    .ltt-load-row { display:flex; justify-content:space-between; font-size:.68rem; font-weight:700; margin-bottom:4px; color:#5A6A88; }
-    .ltt-act-row { display:flex; justify-content:space-between; gap:10px; font-size:.65rem; color:#8898BB; margin-bottom:2px; }
-    .ltt-act-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .ltt-act-km { font-weight:700; color:#00D4C8; white-space:nowrap; }
-    .ltt-divider { border-top:1px dashed #1A2640; margin:5px 0; }
-    .ltt-row { display:flex; justify-content:space-between; gap:12px; font-size:.68rem; color:#5A6A88; margin-bottom:2px; font-weight:600; }
+    /* Legend */
+    .load-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .load-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .72rem;
+      color: #8898BB;
+      font-weight: 500;
+    }
+    .load-leg-circle {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Tooltip */
+    .load-tt {
+      position: fixed;
+      pointer-events: none;
+      opacity: 0;
+      background: rgba(13,17,23,0.97);
+      border: 1px solid #1E2A42;
+      border-radius: 12px;
+      padding: 10px 14px;
+      z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,.8);
+      transition: opacity 120ms ease;
+      min-width: 160px;
+      backdrop-filter: blur(8px);
+    }
+    .load-tt.vis { opacity: 1; }
+    .ltt-date {
+      font-size: .65rem;
+      font-weight: 700;
+      color: #CDD8EE;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1E2A42;
+    }
+    .ltt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: .7rem;
+      color: #5A6A88;
+      margin-bottom: 3px;
+      font-weight: 600;
+    }
   `;
-  document.head.appendChild(style);
+  document.head.appendChild(s);
 }
 
-// ── Fetch — uses start_time_utc (start_time_local is NULL) ─
+// ── Fetch ─────────────────────────────────────────────────
 async function fetchAllActivities() {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 2);
-  const sinceStr = since.toISOString();
-
-  const cols = 'start_time_utc,training_load,sport_type,activity_name,distance_m,avg_hr';
+  const cols = 'start_time_utc,training_load';
   const url = SB_URL + '/rest/v1/activities?select=' + cols +
-    '&start_time_utc=gte.' + sinceStr +
+    '&start_time_utc=gte.' + since.toISOString() +
     '&order=start_time_utc.asc&limit=2000';
-
   const res = await fetch(url, {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   });
@@ -98,20 +210,15 @@ async function fetchAllActivities() {
   return res.json();
 }
 
-// ── Build PMC ──────────────────────────────────────────────
+// ── Build PMC ─────────────────────────────────────────────
 function buildPMC(activities) {
   if (!activities.length) return [];
-
   const byDate = {};
   activities.forEach(a => {
-    // Use start_time_utc, slice to date
-    const raw = a.start_time_utc;
-    if (!raw) return;
-    const d = raw.slice(0, 10);
+    const d = a.start_time_utc ? a.start_time_utc.slice(0, 10) : null;
+    if (!d) return;
     const tl = parseFloat(a.training_load) || 0;
-    if (!byDate[d]) byDate[d] = { load: 0, acts: [] };
-    byDate[d].load += tl;
-    byDate[d].acts.push(a);
+    byDate[d] = (byDate[d] || 0) + tl;
   });
 
   const dates = Object.keys(byDate).sort();
@@ -120,48 +227,40 @@ function buildPMC(activities) {
   const end = new Date();
   const series = [];
   let ctl = 0, atl = 0;
-
   for (let d = new Date(dates[0] + 'T12:00:00Z'); d <= end; d.setDate(d.getDate() + 1)) {
     const ds = d.toISOString().slice(0, 10);
-    const day = byDate[ds] || { load: 0, acts: [] };
-    ctl = ctl + CTL_K * (day.load - ctl);
-    atl = atl + ATL_K * (day.load - atl);
-    series.push({
-      date: ds,
-      load: day.load,
-      acts: day.acts,
-      ctl:  +ctl.toFixed(1),
-      atl:  +atl.toFixed(1),
-      tsb:  +(ctl - atl).toFixed(1)
-    });
+    const load = byDate[ds] || 0;
+    ctl = ctl + CTL_K * (load - ctl);
+    atl = atl + ATL_K * (load - atl);
+    series.push({ date: ds, load, ctl: +ctl.toFixed(1), atl: +atl.toFixed(1) });
   }
   return series;
 }
 
-// ── Draw ───────────────────────────────────────────────────
-function drawPMC(series, months) {
+// ── Draw ──────────────────────────────────────────────────
+function drawPMC(series, days) {
   const outer = document.getElementById('load-chart-outer');
   if (!outer) return;
-  const existing = outer.querySelector('svg');
-  if (existing) existing.remove();
+  const old = outer.querySelector('svg');
+  if (old) old.remove();
 
-  const W = outer.clientWidth  || 340;
-  const H = outer.clientHeight || 260;
-  const pT = 10, pB = 26, pL = 36, pR = 60;
+  const W = outer.clientWidth || 340;
+  const H = outer.clientHeight || 280;
+  const pT = 12, pB = 32, pL = 40, pR = 12;
 
   const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - months);
+  cutoff.setDate(cutoff.getDate() - days);
   const cutStr = cutoff.toISOString().slice(0, 10);
-  const visible = series.filter(d => d.date >= cutStr);
-  if (!visible.length) return;
+  const vis = series.filter(d => d.date >= cutStr);
+  if (!vis.length) return;
 
-  const n = visible.length;
-  const maxV = Math.max(...visible.map(d => Math.max(d.ctl, d.atl, d.load)), 10) + 8;
-  const minV = Math.min(...visible.map(d => d.tsb), 0) - 8;
+  const n = vis.length;
+  const allV = vis.flatMap(d => [d.ctl, d.atl]);
+  const minV = Math.min(...allV) - 8;
+  const maxV = Math.max(...allV) + 8;
 
   const xS = i => pL + (i / Math.max(n - 1, 1)) * (W - pL - pR);
   const yS = v => pT + ((maxV - v) / (maxV - minV)) * (H - pT - pB);
-  const y0 = yS(0);
 
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -175,146 +274,134 @@ function drawPMC(series, months) {
     return el;
   };
 
-  // Defs
+  // Defs — gradients under each line
   const defs = mk('defs');
-  const grad = mk('linearGradient', { id:'ctl-fill', x1:0, y1:0, x2:0, y2:1 });
-  grad.appendChild(mk('stop', { offset:'0%', 'stop-color':C_CTL, 'stop-opacity':'0.2' }));
-  grad.appendChild(mk('stop', { offset:'100%', 'stop-color':C_CTL, 'stop-opacity':'0' }));
-  defs.appendChild(grad); svg.appendChild(defs);
 
-  // Optimal zone
-  const yZ1 = yS(5), yZ2 = yS(-10);
-  if (yZ2 > yZ1) svg.appendChild(mk('rect', { x:pL, y:yZ1, width:W-pL-pR, height:yZ2-yZ1, fill:'rgba(255,255,255,0.04)' }));
+  const ctlGrad = mk('linearGradient', { id:'g-ctl', x1:0, y1:0, x2:0, y2:1 });
+  ctlGrad.appendChild(mk('stop', { offset:'0%',   'stop-color':C_CTL, 'stop-opacity':'0.22' }));
+  ctlGrad.appendChild(mk('stop', { offset:'100%', 'stop-color':C_CTL, 'stop-opacity':'0' }));
+  defs.appendChild(ctlGrad);
 
-  // Zone labels
-  [{ v:15, l:'Freshness' }, { v:0, l:'Neutral' }, { v:-8, l:'Optimal' }, { v:-25, l:'Overload' }].forEach(z => {
-    const y = yS(z.v);
-    if (y < pT - 5 || y > H - pB + 5) return;
-    svg.appendChild(mk('line', { x1:pL, x2:W-pR, y1:y, y2:y, stroke:'rgba(255,255,255,0.08)', 'stroke-dasharray':'3,3', 'stroke-width':'0.8' }));
-    svg.appendChild(mk('text', { x:W-pR+4, y:y+3, 'font-size':'7', fill:'rgba(255,255,255,0.22)', 'text-anchor':'start' }, z.l));
-  });
+  const atlGrad = mk('linearGradient', { id:'g-atl', x1:0, y1:0, x2:0, y2:1 });
+  atlGrad.appendChild(mk('stop', { offset:'0%',   'stop-color':C_ATL, 'stop-opacity':'0.22' }));
+  atlGrad.appendChild(mk('stop', { offset:'100%', 'stop-color':C_ATL, 'stop-opacity':'0' }));
+  defs.appendChild(atlGrad);
+  svg.appendChild(defs);
 
-  // Y ticks
-  const step = (maxV - minV) > 80 ? 20 : (maxV - minV) > 40 ? 10 : 5;
-  for (let t = Math.ceil(minV/step)*step; t <= maxV; t += step) {
+  // Y grid lines + labels
+  const step = (maxV - minV) > 100 ? 20 : (maxV - minV) > 60 ? 10 : 5;
+  for (let t = Math.ceil(minV / step) * step; t <= maxV; t += step) {
     const y = yS(t);
-    if (y < pT || y > H-pB) continue;
-    svg.appendChild(mk('line', { x1:pL-3, x2:pL, y1:y, y2:y, stroke:'rgba(255,255,255,0.15)', 'stroke-width':'0.8' }));
-    svg.appendChild(mk('text', { x:pL-5, y:y+3, 'font-size':'8', fill:'rgba(255,255,255,0.3)', 'text-anchor':'end' }, Math.round(t)));
+    if (y < pT || y > H - pB) continue;
+    svg.appendChild(mk('line', { x1:pL, x2:W-pR, y1:y, y2:y, stroke:'rgba(255,255,255,0.06)', 'stroke-width':'1' }));
+    svg.appendChild(mk('text', { x:pL-6, y:y+3.5, 'font-size':'9', fill:'rgba(255,255,255,0.3)', 'text-anchor':'end' }, Math.round(t)));
   }
 
-  // Zero line
-  svg.appendChild(mk('line', { x1:pL, x2:W-pR, y1:y0, y2:y0, stroke:'rgba(255,255,255,0.2)', 'stroke-width':'1' }));
-
-  // Load bars
-  const barW = Math.max(1, Math.floor((W - pL - pR) / n) - 1);
-  visible.forEach((d, i) => {
-    if (!d.load) return;
-    const bh = Math.max(1, y0 - yS(d.load));
-    svg.appendChild(mk('rect', { x:xS(i)-barW/2, y:yS(d.load), width:barW, height:bh, fill:C_LOAD, opacity:'0.4', rx:'1' }));
+  // X dashed grid + date labels — one per period tick
+  const every = n > 300 ? 60 : n > 120 ? 30 : n > 60 ? 14 : 7;
+  vis.forEach((d, i) => {
+    if (i % every !== 0 && i !== n - 1) return;
+    const x = xS(i);
+    svg.appendChild(mk('line', { x1:x, x2:x, y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.06)', 'stroke-dasharray':'3,3', 'stroke-width':'1' }));
+    const dt = new Date(d.date + 'T12:00:00');
+    const lbl = dt.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    svg.appendChild(mk('text', { x, y:H-pB+14, 'text-anchor':'middle', 'font-size':'9', fill:'rgba(255,255,255,0.3)' }, lbl));
   });
 
-  // CTL area fill
-  const ctlPts = visible.map((d, i) => xS(i)+','+yS(d.ctl)).join(' ');
-  svg.appendChild(mk('polygon', { points: xS(0)+','+y0+' '+ctlPts+' '+xS(n-1)+','+y0, fill:'url(#ctl-fill)' }));
-
-  // Lines helper
-  const polyline = (key, color, width, dash) => {
-    const el = mk('polyline', {
-      points: visible.map((d,i) => xS(i)+','+yS(d[key])).join(' '),
-      fill:'none', stroke:color, 'stroke-width':width,
-      'stroke-linecap':'round', 'stroke-linejoin':'round'
+  // Area fills (under each line)
+  const areaPath = (key, gradId) => {
+    const pts = vis.map((d, i) => xS(i) + ',' + yS(d[key])).join(' ');
+    const bot = H - pB;
+    return mk('polygon', {
+      points: xS(0)+','+bot+' '+pts+' '+xS(n-1)+','+bot,
+      fill: 'url(#'+gradId+')'
     });
-    if (dash) el.setAttribute('stroke-dasharray', dash);
+  };
+  svg.appendChild(areaPath('ctl', 'g-ctl'));
+  svg.appendChild(areaPath('atl', 'g-atl'));
+
+  // Lines
+  const drawLine = (key, color, width) => {
+    const el = mk('polyline', {
+      points: vis.map((d,i) => xS(i)+','+yS(d[key])).join(' '),
+      fill: 'none', stroke: color, 'stroke-width': width,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+    });
+    svg.appendChild(el);
     return el;
   };
+  drawLine('ctl', C_CTL, '2.5');
+  drawLine('atl', C_ATL, '2.5');
 
-  svg.appendChild(polyline('ctl', C_CTL, '2'));
-  svg.appendChild(polyline('atl', C_ATL, '2'));
-  svg.appendChild(polyline('tsb', C_TSB, '1.5'));
-
-  // X date labels
-  const every = n > 300 ? 60 : n > 150 ? 30 : n > 60 ? 14 : n > 30 ? 7 : 4;
-  visible.forEach((d, i) => {
-    if (i % every !== 0 && i !== n-1) return;
-    const lbl = new Date(d.date+'T12:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
-    svg.appendChild(mk('text', { x:xS(i), y:H-6, 'text-anchor':'middle', 'font-size':'7.5', fill:'rgba(255,255,255,0.3)' }, lbl));
-  });
-
-  // Interactive overlay
+  // Hover overlay
   const overlay = mk('rect', { x:pL, y:pT, width:W-pL-pR, height:H-pT-pB, fill:'transparent' });
   overlay.style.cursor = 'crosshair';
-  const vLine = mk('line', { y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.35)', 'stroke-width':'1', 'stroke-dasharray':'3,2' });
+  const vLine = mk('line', { y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.3)', 'stroke-width':'1', 'stroke-dasharray':'3,2' });
   vLine.style.display = 'none';
-  const ctlDot = mk('circle', { r:'4', fill:C_CTL }); ctlDot.style.display='none';
-  const atlDot = mk('circle', { r:'4', fill:C_ATL }); atlDot.style.display='none';
-  const tsbDot = mk('circle', { r:'4', fill:C_TSB }); tsbDot.style.display='none';
-  [vLine, ctlDot, atlDot, tsbDot, overlay].forEach(el => svg.appendChild(el));
+  const ctlDot = mk('circle', { r:'5', fill:C_CTL, stroke:'#0D1117', 'stroke-width':'2' }); ctlDot.style.display='none';
+  const atlDot = mk('circle', { r:'5', fill:C_ATL, stroke:'#0D1117', 'stroke-width':'2' }); atlDot.style.display='none';
+  [vLine, ctlDot, atlDot, overlay].forEach(el => svg.appendChild(el));
 
   const tt = document.getElementById('load-tt');
-
-  const showTip = (clientX, clientY, localX) => {
-    const idx = Math.max(0, Math.min(n-1, Math.round(((localX - pL) / (W-pL-pR)) * (n-1))));
-    const pt = visible[idx];
-    vLine.setAttribute('x1', xS(idx)); vLine.setAttribute('x2', xS(idx)); vLine.style.display='';
-    ctlDot.setAttribute('cx', xS(idx)); ctlDot.setAttribute('cy', yS(pt.ctl)); ctlDot.style.display='';
-    atlDot.setAttribute('cx', xS(idx)); atlDot.setAttribute('cy', yS(pt.atl)); atlDot.style.display='';
-    tsbDot.setAttribute('cx', xS(idx)); tsbDot.setAttribute('cy', yS(pt.tsb)); tsbDot.style.display='';
-    const dls = new Date(pt.date+'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-    const actRows = pt.acts.map(a => {
-      const km = a.distance_m ? (a.distance_m/1000).toFixed(1)+' km' : '';
-      return `<div class="ltt-act-row"><span class="ltt-act-name">${sportLabel(a.sport_type)}${a.activity_name ? ' · '+a.activity_name : ''}</span><span class="ltt-act-km">${km}</span></div>`;
-    }).join('');
+  const showTip = (cx, cy, lx) => {
+    const idx = Math.max(0, Math.min(n-1, Math.round(((lx - pL) / (W-pL-pR)) * (n-1))));
+    const pt = vis[idx];
+    vLine.setAttribute('x1', xS(idx)); vLine.setAttribute('x2', xS(idx)); vLine.style.display = '';
+    ctlDot.setAttribute('cx', xS(idx)); ctlDot.setAttribute('cy', yS(pt.ctl)); ctlDot.style.display = '';
+    atlDot.setAttribute('cx', xS(idx)); atlDot.setAttribute('cy', yS(pt.atl)); atlDot.style.display = '';
+    const dls = new Date(pt.date+'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
     tt.innerHTML = `
       <div class="ltt-date">${dls}</div>
-      ${pt.load ? `<div class="ltt-load-row"><span>Load</span><span style="color:${C_LOAD}">${pt.load.toFixed(0)}</span></div>` : ''}
-      ${actRows}
-      <div class="ltt-divider"></div>
-      <div class="ltt-row"><span>Fitness (CTL)</span><span style="color:${C_CTL}">${pt.ctl.toFixed(1)}</span></div>
-      <div class="ltt-row"><span>Fatigue (ATL)</span><span style="color:${C_ATL}">${pt.atl.toFixed(1)}</span></div>
-      <div class="ltt-row"><span>Form (TSB)</span><span style="color:${C_TSB}">${(pt.tsb>0?'+':'')+pt.tsb.toFixed(1)}</span></div>`;
-    tt.style.left = Math.min(clientX+14, window.innerWidth-200)+'px';
-    tt.style.top  = Math.max(8, clientY-60)+'px';
+      <div class="ltt-row"><span style="color:${C_CTL}">Fitness (CTL)</span><span style="color:${C_CTL};font-weight:900">${pt.ctl.toFixed(1)}</span></div>
+      <div class="ltt-row"><span style="color:${C_ATL}">Fatigue (ATL)</span><span style="color:${C_ATL};font-weight:900">${pt.atl.toFixed(1)}</span></div>
+      <div class="ltt-row"><span style="color:#8898BB">Form (TSB)</span><span style="color:#8898BB;font-weight:900">${(pt.ctl - pt.atl > 0 ? '+' : '') + (pt.ctl - pt.atl).toFixed(1)}</span></div>`;
+    tt.style.left = Math.min(cx+14, window.innerWidth-180) + 'px';
+    tt.style.top  = Math.max(8, cy-70) + 'px';
     tt.classList.add('vis');
   };
-
-  overlay.addEventListener('mousemove', e => {
-    const r = svg.getBoundingClientRect();
-    showTip(e.clientX, e.clientY, e.clientX - r.left);
-  });
-  overlay.addEventListener('touchmove', e => {
-    e.preventDefault();
-    const r = svg.getBoundingClientRect();
-    const t = e.touches[0];
-    showTip(t.clientX, t.clientY, t.clientX - r.left);
-  }, { passive:false });
-  overlay.addEventListener('mouseleave', () => {
-    vLine.style.display='none'; ctlDot.style.display='none';
-    atlDot.style.display='none'; tsbDot.style.display='none';
-    tt.classList.remove('vis');
-  });
+  overlay.addEventListener('mousemove', e => { const r=svg.getBoundingClientRect(); showTip(e.clientX, e.clientY, e.clientX-r.left); });
+  overlay.addEventListener('touchmove', e => { e.preventDefault(); const r=svg.getBoundingClientRect(); const t=e.touches[0]; showTip(t.clientX, t.clientY, t.clientX-r.left); }, { passive:false });
+  overlay.addEventListener('mouseleave', () => { vLine.style.display='none'; ctlDot.style.display='none'; atlDot.style.display='none'; tt.classList.remove('vis'); });
 
   outer.appendChild(svg);
-
-  // Header values
-  const last = visible[visible.length-1];
-  const ce = document.getElementById('load-ctl-val');
-  const ae = document.getElementById('load-atl-val');
-  const te = document.getElementById('load-tsb-val');
-  if (ce) ce.textContent = last.ctl.toFixed(1);
-  if (ae) ae.textContent = last.atl.toFixed(1);
-  if (te) {
-    te.textContent = (last.tsb>0?'+':'')+last.tsb.toFixed(1);
-    te.style.color = last.tsb > 5 ? '#7ED4A0' : last.tsb < -20 ? '#FF5A6E' : C_TSB;
-  }
 }
 
-// ── Public ─────────────────────────────────────────────────
-export function loadSetPeriod(months) {
-  ls.activePeriod = months;
+// ── Update big metric numbers ─────────────────────────────
+function updateMetrics(series, days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  const vis = series.filter(d => d.date >= cutStr);
+  if (vis.length < 2) return;
+
+  const today = vis[vis.length - 1];
+  const prev  = vis[vis.length - 2];
+
+  const set = (idBig, idPrev, curVal, prevVal) => {
+    const bigEl  = document.getElementById(idBig);
+    const prevEl = document.getElementById(idPrev);
+    if (bigEl)  bigEl.textContent = Math.round(curVal);
+    if (prevEl) {
+      const diff = curVal - prevVal;
+      const arrow = diff >= 0
+        ? '<span class="arrow-up">↑</span>'
+        : '<span class="arrow-down">↓</span>';
+      prevEl.innerHTML = Math.round(prevVal) + ' ' + arrow;
+    }
+  };
+  set('load-ctl-big', 'load-ctl-prev', today.ctl, prev.ctl);
+  set('load-atl-big', 'load-atl-prev', today.atl, prev.atl);
+}
+
+// ── Public ────────────────────────────────────────────────
+export function loadSetPeriod(days) {
+  ls.activeDays = days;
   document.querySelectorAll('.load-period-btn').forEach(b =>
-    b.classList.toggle('active', +b.dataset.m === months));
-  if (ls.pmcSeries) drawPMC(ls.pmcSeries, months);
+    b.classList.toggle('active', +b.dataset.d === days));
+  if (ls.pmcSeries) {
+    drawPMC(ls.pmcSeries, days);
+    updateMetrics(ls.pmcSeries, days);
+  }
 }
 window.loadSetPeriod = loadSetPeriod;
 
@@ -323,28 +410,45 @@ export async function renderLoad() {
 
   const container = document.getElementById('panel-load');
   container.innerHTML = `
-    <div class="load-header">
-      <div>
-        <div class="load-eyebrow">Training Load</div>
-        <div class="load-pmc-vals">
-          <span class="load-val-item ctl">Fitness <span id="load-ctl-val">—</span></span>
-          <span class="load-val-item atl">Fatigue <span id="load-atl-val">—</span></span>
-          <span class="load-val-item tsb">Form <span id="load-tsb-val">—</span></span>
+    <div class="load-title">Training Load</div>
+
+    <div class="load-period-wrap">
+      ${PERIODS.map(p => `
+        <button class="load-period-btn${p.days === DEFAULT_DAYS ? ' active' : ''}"
+          data-d="${p.days}" onclick="loadSetPeriod(${p.days})">${p.label}</button>
+      `).join('')}
+    </div>
+
+    <div class="load-metrics-row">
+      <div class="load-metric">
+        <div class="load-metric-label ctl">Fitness</div>
+        <div class="load-metric-main-row">
+          <div class="load-metric-big" id="load-ctl-big">—</div>
+          <div class="load-metric-prev" id="load-ctl-prev"></div>
         </div>
       </div>
-      <div class="load-period-wrap">
-        ${PERIODS.map(p => `<button class="load-period-btn${p.months===DEFAULT_PERIOD?' active':''}" data-m="${p.months}" onclick="loadSetPeriod(${p.months})">${p.label}</button>`).join('')}
+      <div class="load-metric">
+        <div class="load-metric-label atl">Fatigue</div>
+        <div class="load-metric-main-row">
+          <div class="load-metric-big" id="load-atl-big">—</div>
+          <div class="load-metric-prev" id="load-atl-prev"></div>
+        </div>
       </div>
     </div>
-    <div class="load-card">
-      <div id="load-chart-outer" class="load-chart-outer"></div>
-      <div class="load-legend">
-        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_CTL}"></div>Fitness (CTL)</div>
-        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_ATL}"></div>Fatigue (ATL)</div>
-        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_TSB}"></div>Form (TSB)</div>
-        <div class="load-legend-item"><div class="load-leg-bar" style="background:${C_LOAD}"></div>Load</div>
+
+    <div class="load-chart-outer" id="load-chart-outer"></div>
+
+    <div class="load-legend">
+      <div class="load-legend-item">
+        <div class="load-leg-circle" style="background:${C_CTL}"></div>
+        Fitness – Long Term Training Load
+      </div>
+      <div class="load-legend-item">
+        <div class="load-leg-circle" style="background:${C_ATL}"></div>
+        Fatigue – Short Term Training Load
       </div>
     </div>
+
     <div id="load-tt" class="load-tt"></div>
   `;
 
@@ -361,13 +465,15 @@ export async function renderLoad() {
       return;
     }
 
+    updateMetrics(ls.pmcSeries, ls.activeDays);
+
     const outer = document.getElementById('load-chart-outer');
     if (outer.clientWidth > 0) {
-      drawPMC(ls.pmcSeries, ls.activePeriod);
+      drawPMC(ls.pmcSeries, ls.activeDays);
     } else {
       const ro = new ResizeObserver(entries => {
         for (const e of entries) {
-          if (e.contentRect.width > 0) { ro.disconnect(); drawPMC(ls.pmcSeries, ls.activePeriod); }
+          if (e.contentRect.width > 0) { ro.disconnect(); drawPMC(ls.pmcSeries, ls.activeDays); }
         }
       });
       ro.observe(outer);
@@ -375,6 +481,6 @@ export async function renderLoad() {
   } catch (e) {
     console.error(e);
     document.getElementById('panel-load').innerHTML =
-      '<div style="padding:24px;text-align:center;color:#FF5A6E;font-size:.8rem;">⚠️ ' + e.message + '</div>';
+      `<div style="padding:24px;text-align:center;color:#FF5A6E;font-size:.8rem;">⚠️ ${e.message}</div>`;
   }
 }
