@@ -217,7 +217,7 @@ export async function fetchAndRenderVolume() {
     state.volRawRows = await fetchVolumeData(fmtDate(since));
     if (state.volRawRows.length === 0) { skel.style.display = 'none'; emptyEl.style.display = 'flex'; if (emptyMsg) emptyMsg.textContent = 'No activities found.'; }
     else { renderVolume(); if (!state.yoyFetched) { state.yoyFetched = true; fetchAndRenderYoY(); } }
-  } catch (e) { skel.style.display = 'none'; emptyEl.style.display = 'flex'; emptyEl.innerHTML = \`<div class="vol-empty-icon">⚠️</div><div class="vol-empty-msg">${e.message}</div>\`; }
+  } catch (e) { skel.style.display = 'none'; emptyEl.style.display = 'flex'; emptyEl.innerHTML = '<div class="vol-empty-icon">⚠️</div><div class="vol-empty-msg">' + e.message + '</div>'; }
   finally { state.volFetching = false; }
 }
 
