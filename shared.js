@@ -8,7 +8,7 @@ export const TAB_SUBTITLES = {
   volume: "Running Volume" 
 };
 
-// Global state shared across modules
+// Global state shared across module
 export const state = {
   allRows: [],
   currentTab: 'wellness',
