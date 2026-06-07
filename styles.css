@@ -522,3 +522,25 @@ body{
   font-size:.68rem; color:var(--label); margin-bottom:2px; font-weight:600;
 }
 
+/* Freeze top nav bar */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+}
+
+.tab-bar {
+  position: sticky;
+  top: calc(var(--safe-t) + 48px); /* approx height of header */
+  z-index: 99;
+  background: var(--bg);
+  padding-bottom: 4px;
+}
+
+.swipe-hint {
+  position: sticky;
+  top: calc(var(--safe-t) + 100px); /* below header + tab bar */
+  z-index: 98;
+  background: var(--bg);
+}
