@@ -109,7 +109,7 @@ function legendGradient(scheme) {
 export async function fetchVolumeData(sinceDateStr) {
   const cols = 'activity_name,strava_activity_name,start_time_utc,distance_m,activity_type';
   const types = 'running,trail_running,treadmill_running';
-  const url = `${SB_URL}/rest/v1/activities?select=${encodeURIComponent(cols)}&start_time_utc=gte.${sinceDateStr}T00:00:00Z&activity_type=in.(${encodeURIComponent(types)})&order=start_time_utc.asc&limit=2000`;
+  const url = `${SB_URL}/rest/v1/activities?select=${cols}&start_time_utc=gte.${sinceDateStr}T00:00:00Z&activity_type=in.(${types})&order=start_time_utc.asc&limit=2000`;
   const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
   if (!res.ok) throw new Error(`Activities API error ${res.status}`);
   const data = await res.json();
@@ -243,7 +243,7 @@ export async function fetchYoYData() {
   const types = 'running,trail_running,treadmill_running';
   let all = [], offset = 0, limit = 1000;
   while (true) {
-    const url = `${SB_URL}/rest/v1/activities?select=${cols}&activity_type=in.(${encodeURIComponent(types)})&order=start_time_utc.asc&limit=${limit}&offset=${offset}`;
+    const url = `${SB_URL}/rest/v1/activities?select=${cols}&activity_type=in.(${types})&order=start_time_utc.asc&limit=${limit}&offset=${offset}`;
     const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
     if (!res.ok) throw new Error('YoY Fetch Error');
     const data = await res.json();
