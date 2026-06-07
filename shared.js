@@ -104,9 +104,14 @@ export async function switchTab(tab) {
     renderDashboard(state.allRows);
   }
   if (tab === 'wellness' && state.allRows.length) {
-    const { wSetRange } = await import('./tab-wellness.js');
+  const { renderWellness, wSetRange } = await import('./tab-wellness.js');
+  const container = document.getElementById('panel-wellness');
+  if (container.innerHTML.trim() === '') {
+    renderWellness(state.allRows);
+  } else {
     requestAnimationFrame(() => wSetRange(state.wActiveDay));
   }
+}
   if (tab === 'readiness' && !state.readinessRendered && state.allRows.length) {
     state.readinessRendered = true;
     const { renderReadiness } = await import('./tab-readiness.js');
