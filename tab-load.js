@@ -1,32 +1,28 @@
 import { state, SB_URL, SB_KEY } from './shared.js';
 
-// ── Constants ──────────────────────────────────────────────
-const CTL_DAYS = 42;  // Fitness time constant
-const ATL_DAYS = 7;   // Fatigue time constant
+const CTL_DAYS = 42;
+const ATL_DAYS = 7;
 const CTL_K = 1 - Math.exp(-1 / CTL_DAYS);
 const ATL_K = 1 - Math.exp(-1 / ATL_DAYS);
 
 const PERIODS = [
-  { label: '1M', months: 1 },
-  { label: '3M', months: 3 },
-  { label: '6M', months: 6 },
+  { label: '1M', months: 1  },
+  { label: '3M', months: 3  },
+  { label: '6M', months: 6  },
   { label: '12M', months: 12 },
   { label: '24M', months: 24 }
 ];
 const DEFAULT_PERIOD = 6;
 
-// Colours matching reference
-const C_LOAD    = '#C8A0E8'; // yellow-white stress dots
-const C_CTL     = '#A070D0'; // purple — Fitness
-const C_ATL     = '#E08030'; // orange — Fatigue
-const C_TSB     = '#E0D060'; // yellow — Form
-const C_OPTIMAL = 'rgba(255,255,255,0.07)';
+const C_CTL  = '#A070D0';
+const C_ATL  = '#E08030';
+const C_TSB  = '#E0D060';
+const C_LOAD = '#C8A0E8';
 
-// Sport type → short label
 const sportLabel = t => {
   if (!t) return 'Activity';
   const s = t.toLowerCase();
-  if (s.includes('run')) return '🏃 Run';
+  if (s.includes('run'))  return '🏃 Run';
   if (s.includes('ride') || s.includes('cycl')) return '🚴 Ride';
   if (s.includes('swim')) return '🏊 Swim';
   if (s.includes('walk')) return '🚶 Walk';
@@ -34,57 +30,65 @@ const sportLabel = t => {
   return '⚡ ' + t;
 };
 
-// ── Module state ───────────────────────────────────────────
-let loadState = {
+let ls = {
   activePeriod: DEFAULT_PERIOD,
-  allActivities: [],   // full history fetched once
-  fetched: false,
-  tooltip: null
+  allActivities: [],
+  pmcSeries: null,
+  fetched: false
 };
 
-// ── HTML shell ─────────────────────────────────────────────
-export const loadHTML = `
-  <div class="load-header">
-    <div class="load-title-group">
-      <div class="load-eyebrow">Training Load</div>
-      <div class="load-pmc-vals">
-        <span class="load-val-item ctl">Fitness <span id="load-ctl-val">—</span></span>
-        <span class="load-val-item atl">Fatigue <span id="load-atl-val">—</span></span>
-        <span class="load-val-item tsb">Form <span id="load-tsb-val">—</span></span>
-      </div>
-    </div>
-    <div class="load-period-wrap">
-      ${PERIODS.map(p => `<button class="load-period-btn${p.months === DEFAULT_PERIOD ? ' active' : ''}" data-m="${p.months}" onclick="loadSetPeriod(${p.months})">${p.label}</button>`).join('')}
-    </div>
-  </div>
+// ── Inject CSS once ────────────────────────────────────────
+function injectStyles() {
+  if (document.getElementById('load-tab-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'load-tab-styles';
+  style.textContent = `
+    #panel-load { padding: 10px 16px 24px; display:flex; flex-direction:column; gap:10px; }
 
-  <div class="load-card">
-    <div class="load-chart-inner">
-      <div id="load-chart-wrap" class="load-chart-wrap"></div>
-    </div>
-    <div class="load-legend">
-      <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_CTL}"></div>Fitness (CTL)</div>
-      <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_ATL}"></div>Fatigue (ATL)</div>
-      <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_TSB}"></div>Form (TSB)</div>
-      <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_LOAD};border-radius:2px"></div>Load</div>
-    </div>
-  </div>
+    .load-header { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+    .load-eyebrow { font-size:.56rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#5A6A88; }
+    .load-pmc-vals { display:flex; gap:14px; flex-wrap:wrap; margin-top:4px; }
+    .load-val-item { font-size:.72rem; font-weight:600; color:#5A6A88; }
+    .load-val-item span { font-size:1.05rem; font-weight:900; margin-left:3px; }
+    .load-val-item.ctl span { color:${C_CTL}; }
+    .load-val-item.atl span { color:${C_ATL}; }
+    .load-val-item.tsb span { color:${C_TSB}; }
 
-  <div id="load-tt" class="load-tt"></div>
-`;
+    .load-period-wrap { display:flex; background:#0C1220; border:1px solid #1A2640; border-radius:10px; padding:2px; gap:2px; }
+    .load-period-btn  { padding:5px 10px; font-size:.62rem; font-weight:700; border:none; border-radius:8px; background:transparent; color:#5A6A88; cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent; transition:all 200ms; }
+    .load-period-btn.active { background:#101828; color:${C_CTL}; box-shadow:0 2px 8px rgba(0,0,0,.4); }
 
-// ── Fetch all activities needed for CTL warmup ─────────────
+    .load-card { background:#101828; border:1px solid #1A2640; border-radius:18px; padding:14px 8px 12px; display:flex; flex-direction:column; gap:10px; }
+    .load-chart-outer { width:100%; height:260px; position:relative; }
+    .load-chart-outer svg { position:absolute; inset:0; width:100%; height:100%; display:block; overflow:visible; }
+
+    .load-legend { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+    .load-legend-item { display:flex; align-items:center; gap:5px; font-size:.6rem; color:#5A6A88; font-weight:500; }
+    .load-leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .load-leg-bar { width:10px; height:6px; border-radius:2px; flex-shrink:0; }
+
+    .load-tt { position:fixed; pointer-events:none; opacity:0; background:rgba(12,18,32,0.97); border:1px solid #1A2640; border-radius:10px; padding:10px 12px; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.7); transition:opacity 120ms ease; min-width:180px; backdrop-filter:blur(6px); }
+    .load-tt.vis { opacity:1; }
+    .ltt-date { font-size:.65rem; font-weight:700; color:#CDD8EE; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid #1A2640; }
+    .ltt-load-row { display:flex; justify-content:space-between; font-size:.68rem; font-weight:700; margin-bottom:4px; color:#5A6A88; }
+    .ltt-act-row { display:flex; justify-content:space-between; gap:10px; font-size:.65rem; color:#8898BB; margin-bottom:2px; }
+    .ltt-act-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ltt-act-km { font-weight:700; color:#00D4C8; white-space:nowrap; }
+    .ltt-divider { border-top:1px dashed #1A2640; margin:5px 0; }
+    .ltt-row { display:flex; justify-content:space-between; gap:12px; font-size:.68rem; color:#5A6A88; margin-bottom:2px; font-weight:600; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ── Fetch ──────────────────────────────────────────────────
 async function fetchAllActivities() {
-  // Fetch 2 years to allow CTL to warm up properly
   const since = new Date();
   since.setFullYear(since.getFullYear() - 2);
   const sinceStr = since.toISOString().slice(0, 10);
-
   const cols = 'start_time_local,training_load,sport_type,activity_name,distance_m,avg_hr';
   const url = SB_URL + '/rest/v1/activities?select=' + cols +
     '&start_time_local=gte.' + sinceStr + 'T00:00:00' +
     '&order=start_time_local.asc&limit=2000';
-
   const res = await fetch(url, {
     headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   });
@@ -92,10 +96,9 @@ async function fetchAllActivities() {
   return res.json();
 }
 
-// ── Build PMC data series ──────────────────────────────────
+// ── Build PMC ──────────────────────────────────────────────
 function buildPMC(activities) {
   if (!activities.length) return [];
-
   const byDate = {};
   activities.forEach(a => {
     const d = a.start_time_local ? a.start_time_local.slice(0, 10) : null;
@@ -106,38 +109,42 @@ function buildPMC(activities) {
     byDate[d].acts.push(a);
   });
 
-  // Build daily series from first activity to today
   const dates = Object.keys(byDate).sort();
   if (!dates.length) return [];
 
-  const start = new Date(dates[0]);
-  const end   = new Date();
+  const end = new Date();
   const series = [];
   let ctl = 0, atl = 0;
 
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(dates[0]); d <= end; d.setDate(d.getDate() + 1)) {
     const ds = d.toISOString().slice(0, 10);
     const day = byDate[ds] || { load: 0, acts: [] };
     ctl = ctl + CTL_K * (day.load - ctl);
     atl = atl + ATL_K * (day.load - atl);
-    const tsb = ctl - atl;
     series.push({
       date: ds,
       load: day.load,
       acts: day.acts,
-      ctl: +ctl.toFixed(1),
-      atl: +atl.toFixed(1),
-      tsb: +tsb.toFixed(1)
+      ctl:  +ctl.toFixed(1),
+      atl:  +atl.toFixed(1),
+      tsb:  +(ctl - atl).toFixed(1)
     });
   }
   return series;
 }
 
-// ── Draw chart ─────────────────────────────────────────────
+// ── Draw ───────────────────────────────────────────────────
 function drawPMC(series, months) {
-  const wrap = document.getElementById('load-chart-wrap');
-  if (!wrap) return;
-  d3.select('#load-chart-wrap').selectAll('*').remove();
+  const outer = document.getElementById('load-chart-outer');
+  if (!outer) return;
+
+  // Clear previous SVG
+  const existing = outer.querySelector('svg');
+  if (existing) existing.remove();
+
+  const W = outer.clientWidth  || 340;
+  const H = outer.clientHeight || 260;
+  const pT = 10, pB = 26, pL = 32, pR = 50;
 
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
@@ -145,125 +152,167 @@ function drawPMC(series, months) {
   const visible = series.filter(d => d.date >= cutStr);
   if (!visible.length) return;
 
-  const W = wrap.clientWidth  || 340;
-  const H = wrap.clientHeight || 220;
-  const pT = 14, pB = 28, pL = 36, pR = 14;
-
-  // Value ranges
+  const n = visible.length;
   const ctlVals = visible.map(d => d.ctl);
   const atlVals = visible.map(d => d.atl);
   const tsbVals = visible.map(d => d.tsb);
   const loadVals = visible.map(d => d.load);
 
-  const allPos = [...ctlVals, ...atlVals, ...loadVals];
-  const allNeg = [...tsbVals];
-  const maxV = Math.max(...allPos, 0) + 5;
-  const minV = Math.min(...allNeg, 0) - 5;
+  const maxV = Math.max(...ctlVals, ...atlVals, ...loadVals, 10) + 5;
+  const minV = Math.min(...tsbVals, 0) - 5;
 
-  const n = visible.length;
-  const xS = i => pL + (i / (n - 1)) * (W - pL - pR);
+  const xS = i => pL + (i / Math.max(n - 1, 1)) * (W - pL - pR);
   const yS = v => pT + ((maxV - v) / (maxV - minV)) * (H - pT - pB);
   const y0 = yS(0);
 
-  const svg = d3.select('#load-chart-wrap').append('svg')
-    .attr('viewBox', `0 0 ${W} ${H}`)
-    .style('width', '100%').style('height', '100%').style('overflow', 'visible');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;';
 
-  const defs = svg.append('defs');
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(svgNS, tag);
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+    return el;
+  };
 
-  // CTL gradient
-  const ctlGrad = defs.append('linearGradient').attr('id', 'ctl-grad').attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
-  ctlGrad.append('stop').attr('offset','0%').attr('stop-color', C_CTL).attr('stop-opacity', 0.2);
-  ctlGrad.append('stop').attr('offset','100%').attr('stop-color', C_CTL).attr('stop-opacity', 0);
+  // Defs gradient
+  const defs = mk('defs', {});
+  const grad = mk('linearGradient', { id:'ctl-fill', x1:0, y1:0, x2:0, y2:1 });
+  const s1 = mk('stop', { offset:'0%', 'stop-color': C_CTL, 'stop-opacity':'0.18' });
+  const s2 = mk('stop', { offset:'100%', 'stop-color': C_CTL, 'stop-opacity':'0' });
+  grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
+  svg.appendChild(defs);
 
-  // Optimal TSB zone (-10 to +5 approx) shaded
-  const yOptTop = yS(5), yOptBot = yS(-10);
-  svg.append('rect')
-    .attr('x', pL).attr('y', yOptTop)
-    .attr('width', W - pL - pR).attr('height', yOptBot - yOptTop)
-    .attr('fill', C_OPTIMAL);
+  // Optimal zone shade
+  const yOpt1 = yS(5), yOpt2 = yS(-10);
+  svg.appendChild(mk('rect', { x: pL, y: yOpt1, width: W - pL - pR, height: Math.max(0, yOpt2 - yOpt1), fill:'rgba(255,255,255,0.04)' }));
 
-  // Zone labels (right axis)
-  const zones = [
-    { label: 'Freshness', y: yS(15) },
-    { label: 'Neutral',   y: yS(0) },
-    { label: 'Optimal',   y: yS(-7) },
-    { label: 'Overload',  y: yS(-25) }
-  ];
-  zones.forEach(z => {
-    svg.append('line')
-      .attr('x1', pL).attr('x2', W - pR).attr('y1', z.y).attr('y2', z.y)
-      .attr('stroke', 'rgba(255,255,255,0.1)').attr('stroke-dasharray', '3,3').attr('stroke-width', 0.8);
-    svg.append('text')
-      .attr('x', W - pR + 2).attr('y', z.y + 3)
-      .attr('font-size', '7px').attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('text-anchor', 'start').text(z.label);
+  // Zone lines + labels
+  [
+    { v: 15,  label: 'Freshness' },
+    { v: 0,   label: 'Neutral' },
+    { v: -7,  label: 'Optimal' },
+    { v: -25, label: 'Overload' }
+  ].forEach(z => {
+    if (yS(z.v) < pT || yS(z.v) > H - pB) return;
+    const ln = mk('line', { x1: pL, x2: W - pR, y1: yS(z.v), y2: yS(z.v), stroke:'rgba(255,255,255,0.1)', 'stroke-dasharray':'3,3', 'stroke-width':'0.8' });
+    svg.appendChild(ln);
+    const txt = mk('text', { x: W - pR + 4, y: yS(z.v) + 3, 'font-size':'7', fill:'rgba(255,255,255,0.25)', 'text-anchor':'start' });
+    txt.textContent = z.label;
+    svg.appendChild(txt);
   });
 
-  // Y axis ticks
-  const yTicks = d3.ticks(minV, maxV, 6);
-  yTicks.forEach(t => {
-    svg.append('line')
-      .attr('x1', pL - 3).attr('x2', pL).attr('y1', yS(t)).attr('y2', yS(t))
-      .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 0.5);
-    svg.append('text')
-      .attr('x', pL - 5).attr('y', yS(t) + 3)
-      .attr('font-size', '8px').attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('text-anchor', 'end').text(Math.round(t));
-  });
+  // Y ticks
+  const step = (maxV - minV) > 60 ? 20 : 10;
+  for (let t = Math.ceil(minV / step) * step; t <= maxV; t += step) {
+    const y = yS(t);
+    if (y < pT || y > H - pB) continue;
+    svg.appendChild(mk('line', { x1: pL - 3, x2: pL, y1: y, y2: y, stroke:'rgba(255,255,255,0.15)', 'stroke-width':'0.8' }));
+    const txt = mk('text', { x: pL - 5, y: y + 3, 'font-size':'8', fill:'rgba(255,255,255,0.3)', 'text-anchor':'end' });
+    txt.textContent = t;
+    svg.appendChild(txt);
+  }
 
   // Zero line
-  svg.append('line')
-    .attr('x1', pL).attr('x2', W - pR).attr('y1', y0).attr('y2', y0)
-    .attr('stroke', 'rgba(255,255,255,0.25)').attr('stroke-width', 1);
+  svg.appendChild(mk('line', { x1: pL, x2: W - pR, y1: y0, y2: y0, stroke:'rgba(255,255,255,0.2)', 'stroke-width':'1' }));
 
-  // Training load bars
+  // Load bars
   const barW = Math.max(1, Math.floor((W - pL - pR) / n) - 1);
   visible.forEach((d, i) => {
     if (!d.load) return;
     const bh = Math.max(1, y0 - yS(d.load));
-    svg.append('rect')
-      .attr('x', xS(i) - barW / 2).attr('y', yS(d.load))
-      .attr('width', barW).attr('height', bh)
-      .attr('fill', C_LOAD).attr('opacity', 0.5).attr('rx', 1);
+    svg.appendChild(mk('rect', { x: xS(i) - barW / 2, y: yS(d.load), width: barW, height: bh, fill: C_LOAD, opacity:'0.45', rx:'1' }));
   });
 
-  // Line generator
-  const line = d3.line().defined(d => !isNaN(d.v))
-    .x((d, i) => xS(i)).y(d => yS(d.v)).curve(d3.curveMonotoneX);
+  // Polyline helper
+  const pts = (data, key) => data.map((d, i) => xS(i) + ',' + yS(d[key])).join(' ');
 
   // CTL area
-  const area = d3.area().defined(d => !isNaN(d.v))
-    .x((d, i) => xS(i)).y0(y0).y1(d => yS(d.v)).curve(d3.curveMonotoneX);
-
-  const ctlData = visible.map(d => ({ v: d.ctl }));
-  svg.append('path').datum(ctlData).attr('d', area).attr('fill', 'url(#ctl-grad)');
-  svg.append('path').datum(ctlData).attr('d', line).attr('fill', 'none')
-    .attr('stroke', C_CTL).attr('stroke-width', 2).attr('stroke-linecap', 'round');
+  const ctlPts = visible.map((d, i) => xS(i) + ',' + yS(d.ctl)).join(' ');
+  const areaD = 'M' + xS(0) + ',' + y0 + ' L' + ctlPts + ' L' + xS(n - 1) + ',' + y0 + ' Z';
+  svg.appendChild(mk('path', { d: areaD, fill:'url(#ctl-fill)' }));
+  svg.appendChild(mk('polyline', { points: ctlPts, fill:'none', stroke: C_CTL, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round' }));
 
   // ATL line
-  const atlData = visible.map(d => ({ v: d.atl }));
-  svg.append('path').datum(atlData).attr('d', line).attr('fill', 'none')
-    .attr('stroke', C_ATL).attr('stroke-width', 2).attr('stroke-linecap', 'round');
+  svg.appendChild(mk('polyline', { points: visible.map((d, i) => xS(i) + ',' + yS(d.atl)).join(' '), fill:'none', stroke: C_ATL, 'stroke-width':'2', 'stroke-linecap':'round', 'stroke-linejoin':'round' }));
 
   // TSB line
-  const tsbData = visible.map(d => ({ v: d.tsb }));
-  svg.append('path').datum(tsbData).attr('d', line).attr('fill', 'none')
-    .attr('stroke', C_TSB).attr('stroke-width', 1.5).attr('stroke-linecap', 'round');
+  svg.appendChild(mk('polyline', { points: visible.map((d, i) => xS(i) + ',' + yS(d.tsb)).join(' '), fill:'none', stroke: C_TSB, 'stroke-width':'1.5', 'stroke-linecap':'round', 'stroke-linejoin':'round' }));
 
-  // X axis date labels
-  const every = n > 180 ? 30 : n > 60 ? 14 : n > 30 ? 7 : 3;
+  // X date labels
+  const every = n > 300 ? 60 : n > 150 ? 30 : n > 60 ? 14 : n > 30 ? 7 : 4;
   visible.forEach((d, i) => {
-    if (i % every === 0 || i === n - 1) {
-      const dt = new Date(d.date + 'T12:00:00');
-      const lbl = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-      svg.append('text').attr('x', xS(i)).attr('y', H - 6)
-        .attr('text-anchor', 'middle').attr('font-size', '7.5px')
-        .attr('fill', 'rgba(255,255,255,0.3)').text(lbl);
-    }
+    if (i % every !== 0 && i !== n - 1) return;
+    const dt = new Date(d.date + 'T12:00:00');
+    const lbl = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const txt = mk('text', { x: xS(i), y: H - 6, 'text-anchor':'middle', 'font-size':'7.5', fill:'rgba(255,255,255,0.3)' });
+    txt.textContent = lbl;
+    svg.appendChild(txt);
   });
 
-  // Update header values (today = last point)
+  // Tooltip overlay rect
+  const overlay = mk('rect', { x: pL, y: pT, width: W - pL - pR, height: H - pT - pB, fill:'transparent', style:'cursor:crosshair' });
+  const vLine = mk('line', { y1: pT, y2: H - pB, stroke:'rgba(255,255,255,0.4)', 'stroke-width':'1', 'stroke-dasharray':'3,2', display:'none' });
+  const ctlDot = mk('circle', { r:'4', fill: C_CTL, display:'none' });
+  const atlDot = mk('circle', { r:'4', fill: C_ATL, display:'none' });
+  const tsbDot = mk('circle', { r:'4', fill: C_TSB, display:'none' });
+  svg.appendChild(vLine); svg.appendChild(ctlDot); svg.appendChild(atlDot); svg.appendChild(tsbDot);
+  svg.appendChild(overlay);
+
+  const tt = document.getElementById('load-tt');
+
+  const showTip = (clientX, clientY, svgX) => {
+    const rawIdx = Math.round(((svgX - pL) / (W - pL - pR)) * (n - 1));
+    const idx = Math.max(0, Math.min(n - 1, rawIdx));
+    const pt = visible[idx];
+    vLine.setAttribute('x1', xS(idx)); vLine.setAttribute('x2', xS(idx)); vLine.removeAttribute('display');
+    ctlDot.setAttribute('cx', xS(idx)); ctlDot.setAttribute('cy', yS(pt.ctl)); ctlDot.removeAttribute('display');
+    atlDot.setAttribute('cx', xS(idx)); atlDot.setAttribute('cy', yS(pt.atl)); atlDot.removeAttribute('display');
+    tsbDot.setAttribute('cx', xS(idx)); tsbDot.setAttribute('cy', yS(pt.tsb)); tsbDot.removeAttribute('display');
+
+    const dls = new Date(pt.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+    const actRows = pt.acts.map(a => {
+      const km = a.distance_m ? (a.distance_m / 1000).toFixed(1) + ' km' : '';
+      const nm = a.activity_name || '';
+      return `<div class="ltt-act-row"><span class="ltt-act-name">${sportLabel(a.sport_type)}${nm ? ' · ' + nm : ''}</span><span class="ltt-act-km">${km}</span></div>`;
+    }).join('');
+
+    tt.innerHTML = `
+      <div class="ltt-date">${dls}</div>
+      ${pt.load ? `<div class="ltt-load-row"><span>Load</span><span style="color:${C_LOAD}">${pt.load.toFixed(0)}</span></div>` : ''}
+      ${actRows}
+      <div class="ltt-divider"></div>
+      <div class="ltt-row"><span>Fitness (CTL)</span><span style="color:${C_CTL}">${pt.ctl.toFixed(1)}</span></div>
+      <div class="ltt-row"><span>Fatigue (ATL)</span><span style="color:${C_ATL}">${pt.atl.toFixed(1)}</span></div>
+      <div class="ltt-row"><span>Form (TSB)</span><span style="color:${C_TSB}">${(pt.tsb > 0 ? '+' : '') + pt.tsb.toFixed(1)}</span></div>
+    `;
+    tt.style.left = Math.min(clientX + 14, window.innerWidth - 200) + 'px';
+    tt.style.top  = Math.max(8, clientY - 60) + 'px';
+    tt.classList.add('vis');
+  };
+
+  overlay.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    showTip(e.clientX, e.clientY, e.clientX - rect.left);
+  });
+  overlay.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const t = e.touches[0];
+    showTip(t.clientX, t.clientY, t.clientX - rect.left);
+  }, { passive: false });
+  overlay.addEventListener('mouseleave', () => {
+    vLine.setAttribute('display', 'none');
+    ctlDot.setAttribute('display', 'none');
+    atlDot.setAttribute('display', 'none');
+    tsbDot.setAttribute('display', 'none');
+    tt.classList.remove('vis');
+  });
+
+  outer.appendChild(svg);
+
+  // Update header values
   const last = visible[visible.length - 1];
   const ctlEl = document.getElementById('load-ctl-val');
   const atlEl = document.getElementById('load-atl-val');
@@ -274,89 +323,78 @@ function drawPMC(series, months) {
     tsbEl.textContent = (last.tsb > 0 ? '+' : '') + last.tsb.toFixed(1);
     tsbEl.style.color = last.tsb > 5 ? '#7ED4A0' : last.tsb < -20 ? '#FF5A6E' : C_TSB;
   }
-
-  // Tooltip overlay
-  const overlay = svg.append('rect')
-    .attr('x', pL).attr('y', pT)
-    .attr('width', W - pL - pR).attr('height', H - pT - pB)
-    .attr('fill', 'transparent').style('cursor', 'crosshair');
-
-  const vLine = svg.append('line').attr('y1', pT).attr('y2', H - pB)
-    .attr('stroke', 'rgba(255,255,255,0.35)').attr('stroke-width', 1)
-    .attr('stroke-dasharray', '3,2').style('display', 'none');
-
-  const ctlDot = svg.append('circle').attr('r', 4).attr('fill', C_CTL).style('display','none');
-  const atlDot = svg.append('circle').attr('r', 4).attr('fill', C_ATL).style('display','none');
-  const tsbDot = svg.append('circle').attr('r', 4).attr('fill', C_TSB).style('display','none');
-
-  const tt = document.getElementById('load-tt');
-
-  overlay.on('mousemove touchmove', function(event) {
-    const [mx] = d3.pointer(event, this);
-    const rawIdx = Math.round((mx / (W - pL - pR)) * (n - 1));
-    const idx = Math.max(0, Math.min(n - 1, rawIdx));
-    const pt = visible[idx];
-
-    vLine.attr('x1', xS(idx)).attr('x2', xS(idx)).style('display', null);
-    ctlDot.attr('cx', xS(idx)).attr('cy', yS(pt.ctl)).style('display', null);
-    atlDot.attr('cx', xS(idx)).attr('cy', yS(pt.atl)).style('display', null);
-    tsbDot.attr('cx', xS(idx)).attr('cy', yS(pt.tsb)).style('display', null);
-
-    const dt  = new Date(pt.date + 'T12:00:00');
-    const dls = dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-    const actRows = pt.acts.map(a => {
-      const km = a.distance_m ? (a.distance_m / 1000).toFixed(1) + ' km' : '';
-      return `<div class="ltt-act-row"><span class="ltt-act-name">${sportLabel(a.sport_type)}${a.activity_name ? ' · ' + a.activity_name : ''}</span><span class="ltt-act-km">${km}</span></div>`;
-    }).join('');
-
-    tt.innerHTML = `
-      <div class="ltt-date">${dls}</div>
-      ${pt.load ? `<div class="ltt-load-row">Training Load <span style="color:${C_LOAD}">${pt.load.toFixed(0)}</span></div>` : ''}
-      ${actRows}
-      <div class="ltt-divider"></div>
-      <div class="ltt-row">Fitness (CTL) <span style="color:${C_CTL}">${pt.ctl.toFixed(1)}</span></div>
-      <div class="ltt-row">Fatigue (ATL) <span style="color:${C_ATL}">${pt.atl.toFixed(1)}</span></div>
-      <div class="ltt-row">Form (TSB) <span style="color:${C_TSB}">${(pt.tsb > 0 ? '+' : '') + pt.tsb.toFixed(1)}</span></div>
-    `;
-
-    const rect = wrap.getBoundingClientRect();
-    const ttX = rect.left + xS(idx) + 12;
-    const ttY = rect.top  + yS(pt.ctl) - 20;
-    tt.style.left = Math.min(ttX, window.innerWidth - 200) + 'px';
-    tt.style.top  = Math.max(8, ttY) + 'px';
-    tt.classList.add('vis');
-  });
-
-  overlay.on('mouseleave touchend', () => {
-    vLine.style('display', 'none');
-    ctlDot.style('display','none');
-    atlDot.style('display','none');
-    tsbDot.style('display','none');
-    tt.classList.remove('vis');
-  });
 }
 
-// ── Public API ─────────────────────────────────────────────
+// ── Public ─────────────────────────────────────────────────
 export function loadSetPeriod(months) {
-  loadState.activePeriod = months;
+  ls.activePeriod = months;
   document.querySelectorAll('.load-period-btn').forEach(b =>
     b.classList.toggle('active', +b.dataset.m === months));
-  if (loadState.pmcSeries) drawPMC(loadState.pmcSeries, months);
+  if (ls.pmcSeries) drawPMC(ls.pmcSeries, months);
 }
 window.loadSetPeriod = loadSetPeriod;
 
 export async function renderLoad() {
+  injectStyles();
+
   const container = document.getElementById('panel-load');
-  container.innerHTML = loadHTML;
+  container.innerHTML = `
+    <div class="load-header">
+      <div>
+        <div class="load-eyebrow">Training Load</div>
+        <div class="load-pmc-vals">
+          <span class="load-val-item ctl">Fitness <span id="load-ctl-val">—</span></span>
+          <span class="load-val-item atl">Fatigue <span id="load-atl-val">—</span></span>
+          <span class="load-val-item tsb">Form <span id="load-tsb-val">—</span></span>
+        </div>
+      </div>
+      <div class="load-period-wrap">
+        ${PERIODS.map(p => `<button class="load-period-btn${p.months === DEFAULT_PERIOD ? ' active' : ''}" data-m="${p.months}" onclick="loadSetPeriod(${p.months})">${p.label}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="load-card">
+      <div id="load-chart-outer" class="load-chart-outer"></div>
+      <div class="load-legend">
+        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_CTL}"></div>Fitness (CTL)</div>
+        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_ATL}"></div>Fatigue (ATL)</div>
+        <div class="load-legend-item"><div class="load-leg-dot" style="background:${C_TSB}"></div>Form (TSB)</div>
+        <div class="load-legend-item"><div class="load-leg-bar" style="background:${C_LOAD}"></div>Load</div>
+      </div>
+    </div>
+
+    <div id="load-tt" class="load-tt"></div>
+  `;
 
   try {
-    if (!loadState.fetched) {
-      loadState.allActivities = await fetchAllActivities();
-      loadState.fetched = true;
+    if (!ls.fetched) {
+      ls.allActivities = await fetchAllActivities();
+      ls.fetched = true;
     }
-    loadState.pmcSeries = buildPMC(loadState.allActivities);
-    requestAnimationFrame(() => drawPMC(loadState.pmcSeries, loadState.activePeriod));
+    ls.pmcSeries = buildPMC(ls.allActivities);
+
+    // Use ResizeObserver so we draw only once the element has real dimensions
+    const outer = document.getElementById('load-chart-outer');
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          ro.disconnect();
+          drawPMC(ls.pmcSeries, ls.activePeriod);
+        }
+      }
+    });
+    ro.observe(outer);
+
+    // Fallback in case ResizeObserver fires immediately with 0
+    requestAnimationFrame(() => {
+      if (outer && outer.clientWidth > 0 && !outer.querySelector('svg')) {
+        drawPMC(ls.pmcSeries, ls.activePeriod);
+      }
+    });
+
   } catch (e) {
-    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--low);font-size:.8rem;">⚠️ ' + e.message + '</div>';
+    console.error(e);
+    document.getElementById('panel-load').innerHTML =
+      '<div style="padding:24px;text-align:center;color:#FF5A6E;font-size:.8rem;">⚠️ ' + e.message + '</div>';
   }
 }
