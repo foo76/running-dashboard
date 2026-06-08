@@ -455,4 +455,86 @@ function updateStatus(data, days) {
   const vis = data.filter(d => d.date >= cutoff.toISOString().slice(0, 10));
   if (!vis.length) return;
   const today = vis[vis.length - 1];
-  const meta  = 
+  const meta  = STATUS_META[today.hrv_status] || STATUS_META.UNKNOWN;
+  const le = document.getElementById('re-status-label');
+  const me = document.getElementById('re-status-msg');
+  if (le) { le.textContent = meta.label; le.style.color = meta.color; }
+  if (me) me.textContent = meta.msg;
+}
+
+// ─────────────────────────────────────────────────────────
+// PUBLIC API
+// ─────────────────────────────────────────────────────────
+export function readinessSetPeriod(days) {
+  rs.activeDays = days;
+  document.querySelectorAll('.re-period-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.d === days));
+  if (rs.computed.length) {
+    drawChart(rs.computed, days);
+    updateStatus(rs.computed, days);
+  }
+}
+window.readinessSetPeriod = readinessSetPeriod;
+
+export async function renderReadiness() {
+  injectStyles();
+  const container = document.getElementById('panel-readiness');
+  container.innerHTML = `
+    <div class="re-title">Recovery vs. Exertion</div>
+    <div class="re-period-wrap">
+      ${PERIODS.map(p => `<button class="re-period-btn${p.days === DEFAULT_DAYS ? ' active' : ''}" data-d="${p.days}" onclick="readinessSetPeriod(${p.days})">${p.label}</button>`).join('')}
+    </div>
+    <div class="re-card">
+      <div class="re-chart-outer" id="re-chart-outer"></div>
+      <div class="re-legend">
+        <div class="re-legend-item"><div class="re-leg-line" style="background:${C_RECOVERY}"></div>Recovery</div>
+        <div class="re-legend-item"><div class="re-leg-box"></div>Target Exertion Range</div>
+        <div class="re-legend-item"><div class="re-leg-line" style="background:${C_EXERTION}"></div>Exertion</div>
+        <div class="re-legend-item" style="gap:6px">
+          <div style="display:flex;gap:3px;align-items:center">
+            <div style="width:9px;height:9px;border-radius:50%;background:${C_GREEN}"></div>
+            <div style="width:9px;height:9px;border-radius:50%;background:${C_AMBER}"></div>
+            <div style="width:9px;height:9px;border-radius:50%;background:${C_RED}"></div>
+          </div>HRV Status
+        </div>
+      </div>
+    </div>
+    <div class="re-status-block">
+      <div class="re-status-label" id="re-status-label">—</div>
+      <div class="re-status-msg"   id="re-status-msg"></div>
+    </div>
+    <div id="re-tt" class="re-tt"></div>
+  `;
+
+  try {
+    if (!rs.fetched) {
+      const { wellness, exertion } = await fetchData();
+      rs.computed = mergeData(wellness, exertion);
+      rs.fetched  = true;
+    }
+
+    if (!rs.computed.length) {
+      document.getElementById('re-chart-outer').innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5A6A88;font-size:.8rem;">No readiness data</div>';
+      return;
+    }
+
+    updateStatus(rs.computed, rs.activeDays);
+
+    const outer = document.getElementById('re-chart-outer');
+    if (outer.clientWidth > 0) {
+      drawChart(rs.computed, rs.activeDays);
+    } else {
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          if (e.contentRect.width > 0) { ro.disconnect(); drawChart(rs.computed, rs.activeDays); }
+        }
+      });
+      ro.observe(outer);
+    }
+  } catch (e) {
+    console.error(e);
+    document.getElementById('panel-readiness').innerHTML =
+      `<div style="padding:24px;text-align:center;color:#F87171;font-size:.8rem;">⚠️ ${e.message}</div>`;
+  }
+}
