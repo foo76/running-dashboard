@@ -1,7 +1,7 @@
 import { state, SB_URL, SB_KEY } from './shared.js';
 
 // ─────────────────────────────────────────────────────────
-// CONSTANTS
+//  CONSTANTS
 // ─────────────────────────────────────────────────────────
 const PERIODS = [
   { label: '7 Days',  days: 7  },
