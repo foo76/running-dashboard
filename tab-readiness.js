@@ -1,278 +1,472 @@
-import { state, localDate, rmSk, hmStr, clamp, scoreRow } from './shared.js';
+import { state, SB_URL, SB_KEY } from './shared.js';
 
-export const readinessHTML = `
-  <div class="hero">
-    <div class="gauge-col"><svg id="gauge-svg" width="120" height="110"></svg></div>
-    <div class="hero-right">
-      <div class="hero-state" id="score-state">LOADING</div>
-      <div class="hero-desc" id="hero-desc"></div>
-      <div class="hero-sub" id="hero-sub"></div>
-    </div>
-  </div>
-  <div class="pillars">
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">HRV</span><span class="pillar-pct sk" id="pp-hrv">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-hrv" style="background:var(--c-hrv)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-hrv" style="color:var(--c-hrv);min-width:44px">—</span>
-        <span class="pillar-unit">ms</span>
-        <span class="pillar-delta" id="pd-hrv"></span>
-      </div>
-    </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Sleep</span><span class="pillar-pct sk" id="pp-sleep">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-sleep" style="background:var(--c-sleep)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-sleep" style="color:var(--c-sleep);min-width:32px">—</span>
-        <span class="pillar-unit">/100</span>
-        <span class="pillar-delta" id="pd-sleep"></span>
-      </div>
-    </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Resting HR</span><span class="pillar-pct sk" id="pp-rhr">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-rhr" style="background:var(--c-rhr)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-rhr" style="color:var(--c-rhr);min-width:32px">—</span>
-        <span class="pillar-unit">bpm</span>
-        <span class="pillar-delta" id="pd-rhr"></span>
-      </div>
-    </div>
-    <div class="pillar">
-      <div class="pillar-top"><span class="pillar-name">Stress</span><span class="pillar-pct sk" id="pp-stress">—</span></div>
-      <div class="pillar-bar-track"><div class="pillar-bar-fill" id="pb-stress" style="background:var(--c-stress)"></div></div>
-      <div class="pillar-bottom">
-        <span class="pillar-value sk sk-b" id="pv-stress" style="color:var(--c-stress);min-width:28px">—</span>
-        <span class="pillar-unit">avg</span>
-        <span class="pillar-delta" id="pd-stress"></span>
-      </div>
-    </div>
-  </div>
-  <div class="sleep-row">
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Deep</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-deep" style="color:#5A7FFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-deep" style="background:#5A7FFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Light</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-light" style="color:#7B9EFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-light" style="background:#7B9EFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">REM</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-rem" style="color:#A78BFF;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-rem" style="background:#A78BFF"></div></div>
-    </div>
-    <div class="sleep-seg">
-      <span class="sleep-seg-label">Awake</span>
-      <span class="sleep-seg-val sk sk-b" id="sl-awake" style="color:#FF5A6E;min-width:34px">—</span>
-      <div class="sleep-seg-bar"><div class="sleep-seg-fill" id="slb-awake" style="background:#FF5A6E"></div></div>
-    </div>
-  </div>
-  <div class="r-chart-section">
-    <div class="section-header">
-      <span class="section-title">Readiness History</span>
-      <div class="r-range-wrap">
-        <button class="r-range-btn active" data-d="7"  onclick="rSetRange(7)">7D</button>
-        <button class="r-range-btn"        data-d="14" onclick="rSetRange(14)">14D</button>
-        <button class="r-range-btn"        data-d="28" onclick="rSetRange(28)">28D</button>
-      </div>
-    </div>
-    <div class="r-chart-canvas" id="r-ch-wrap"></div>
-  </div>
-  <div class="sync-footer" id="sync-footer"></div>
-`;
+const PERIODS = [
+  { label: '7 Days',  days: 7  },
+  { label: '30 Days', days: 30 },
+  { label: '60 Days', days: 60 }
+];
+const DEFAULT_DAYS = 7;
 
-const DESCS = {
-  OPTIMAL: "Body is primed — high HRV, strong sleep, low stress. Ideal for a hard session.",
-  GOOD:    "Solid recovery. Train at planned intensity with normal effort.",
-  MODERATE:"Partial recovery. Consider reducing intensity or keeping it aerobic.",
-  RECOVER: "Body is under stress. Rest day or easy active recovery recommended."
+const C_RECOVERY = '#9CA3AF';   // grey  — Recovery line
+const C_EXERTION = '#3B82F6';   // blue  — Exertion line
+const C_BAND     = 'rgba(150,150,170,0.18)'; // grey band fill
+const C_GREEN    = '#4ADE80';
+const C_AMBER    = '#F59E0B';
+const C_RED      = '#F87171';
+
+const STATUS_META = {
+  BALANCED:   { color: C_GREEN,  label: 'Balanced',   msg: 'Good job listening to your body and planning your training accordingly.' },
+  UNBALANCED: { color: C_AMBER,  label: 'Unbalanced', msg: 'Your exertion is not well matched to your recovery. Consider adjusting your training load.' },
+  LOW:        { color: C_RED,    label: 'Low',        msg: 'Your recovery is low. Prioritise rest, sleep and easy activity today.' },
+  UNKNOWN:    { color: C_AMBER,  label: 'Unknown',    msg: 'Not enough data to assess your balance today.' }
 };
 
-function readinessState(s) {
-  if (s >= 80) return { label: "OPTIMAL", color: "var(--optimal)", hex: "#00E5A0" };
-  if (s >= 65) return { label: "GOOD", color: "var(--good)", hex: "#00D4C8" };
-  if (s >= 45) return { label: "MODERATE", color: "var(--compromised)", hex: "#F5C842" };
-  return { label: "RECOVER", color: "var(--low)", hex: "#FF5A6E" };
+const dotColor = status => {
+  if (!status) return C_AMBER;
+  const s = status.toUpperCase();
+  if (s === 'BALANCED')   return C_GREEN;
+  if (s === 'LOW')        return C_RED;
+  return C_AMBER;
+};
+
+let rs = {
+  activeDays: DEFAULT_DAYS,
+  rows: [],
+  fetched: false
+};
+
+// ── Styles ────────────────────────────────────────────────
+function injectStyles() {
+  if (document.getElementById('readiness-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'readiness-styles';
+  s.textContent = `
+    #panel-readiness {
+      padding: 20px 18px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: var(--bg, #0D1117);
+      min-height: 100%;
+    }
+
+    .re-title {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #CDD8EE;
+      margin-bottom: 16px;
+      letter-spacing: -.01em;
+    }
+
+    /* Period tabs */
+    .re-period-wrap {
+      display: flex;
+      background: #161D2E;
+      border: 1px solid #1E2A42;
+      border-radius: 14px;
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 22px;
+    }
+    .re-period-btn {
+      flex: 1;
+      padding: 9px 4px;
+      font-size: .74rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 11px;
+      background: transparent;
+      color: #5A6A88;
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 200ms;
+      text-align: center;
+    }
+    .re-period-btn.active {
+      background: #232E48;
+      color: #CDD8EE;
+      box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    }
+
+    /* Chart card */
+    .re-card {
+      background: #101828;
+      border: 1px solid #1A2640;
+      border-radius: 18px;
+      padding: 16px 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .re-card-title {
+      font-size: .85rem;
+      font-weight: 800;
+      color: #CDD8EE;
+      padding: 0 6px;
+    }
+    .re-chart-outer {
+      width: 100%;
+      height: 280px;
+      position: relative;
+    }
+    .re-chart-outer svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+
+    /* Legend */
+    .re-legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+      padding: 0 6px;
+    }
+    .re-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .68rem;
+      color: #8898BB;
+      font-weight: 500;
+    }
+    .re-leg-line {
+      width: 22px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .re-leg-box {
+      width: 14px;
+      height: 10px;
+      border-radius: 3px;
+      background: rgba(150,150,170,0.35);
+      flex-shrink: 0;
+    }
+
+    /* Status block */
+    .re-status-block {
+      padding: 4px 2px 0;
+    }
+    .re-status-label {
+      font-size: 1rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .re-status-msg {
+      font-size: .8rem;
+      color: #8898BB;
+      line-height: 1.5;
+    }
+
+    /* Tooltip */
+    .re-tt {
+      position: fixed;
+      pointer-events: none;
+      opacity: 0;
+      background: rgba(13,17,23,0.97);
+      border: 1px solid #1E2A42;
+      border-radius: 12px;
+      padding: 10px 14px;
+      z-index: 9999;
+      box-shadow: 0 8px 32px rgba(0,0,0,.8);
+      transition: opacity 120ms ease;
+      min-width: 160px;
+      backdrop-filter: blur(8px);
+    }
+    .re-tt.vis { opacity: 1; }
+    .rett-date {
+      font-size: .65rem;
+      font-weight: 700;
+      color: #CDD8EE;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #1E2A42;
+    }
+    .rett-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: .7rem;
+      color: #5A6A88;
+      margin-bottom: 3px;
+      font-weight: 600;
+    }
+  `;
+  document.head.appendChild(s);
 }
 
-export function drawGauge(score, hex) {
-  const svg = d3.select("#gauge-svg");
-  svg.selectAll("*").remove();
-  const cx = 60, cy = 78, r = 50, sw = 9;
-  const sa = -Math.PI * 0.78, ea = Math.PI * 0.78;
-  const arc = d3.arc().innerRadius(r - sw).outerRadius(r).startAngle(sa);
-  const defs = svg.append("defs");
-  const gf = defs.append("filter").attr("id", "gg").attr("x", "-60%").attr("y", "-60%").attr("width", "220%").attr("height", "220%");
-  gf.append("feGaussianBlur").attr("stdDeviation", "3").attr("result", "b");
-  gf.append("feMerge").selectAll("feMergeNode").data(["b", "SourceGraphic"]).join("feMergeNode").attr("in", d => d);
-  svg.append("path").attr("transform", `translate(${cx},${cy})`).attr("d", arc({ endAngle: ea })).attr("fill", "#1A2640");
-  const gp = svg.append("path").attr("transform", `translate(${cx},${cy})`).attr("d", arc({ endAngle: sa }))
-    .attr("fill", "none").attr("stroke", hex).attr("stroke-width", 3).attr("opacity", .28).attr("filter", "url(#gg)");
-  const fp = svg.append("path").attr("transform", `translate(${cx},${cy})`).attr("d", arc({ endAngle: sa }))
-    .attr("fill", hex).attr("opacity", .92);
-  const fillEnd = sa + (ea - sa) * (score / 100);
-  [fp, gp].forEach(p => {
-    p.transition().duration(900).ease(d3.easeCubicOut)
-      .attrTween("d", () => { const i = d3.interpolate(sa, fillEnd); return t => arc({ endAngle: i(t) }); });
+// ── Fetch ─────────────────────────────────────────────────
+async function fetchReadiness() {
+  const since = new Date();
+  since.setDate(since.getDate() - 65); // fetch 65 days max
+  const cols = 'date,body_battery_at_wake,body_battery_drained,hrv_status,sleep_score,stress_avg';
+  const url = SB_URL + '/rest/v1/wellness_daily?select=' + cols +
+    '&date=gte.' + since.toISOString().slice(0, 10) +
+    '&order=date.asc&limit=70';
+  const res = await fetch(url, {
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
   });
-  [[45, "#F5C842"], [65, "#00D4C8"], [80, "#00E5A0"]].forEach(([pct, col]) => {
-    const a = sa + (ea - sa) * (pct / 100);
-    svg.append("line")
-      .attr("x1", cx + (r - sw - 2) * Math.cos(a - Math.PI / 2)).attr("y1", cy + (r - sw - 2) * Math.sin(a - Math.PI / 2))
-      .attr("x2", cx + (r + 4) * Math.cos(a - Math.PI / 2)).attr("y2", cy + (r + 4) * Math.sin(a - Math.PI / 2))
-      .attr("stroke", col).attr("stroke-width", 1.2).attr("opacity", .55);
-  });
-  const midR = r - sw / 2;
-  const dot = svg.append("circle")
-    .attr("cx", cx + midR * Math.cos(sa - Math.PI / 2)).attr("cy", cy + midR * Math.sin(sa - Math.PI / 2))
-    .attr("r", sw / 2 + 1).attr("fill", hex);
-  dot.transition().duration(900).ease(d3.easeCubicOut)
-    .attrTween("cx", () => { const i = d3.interpolate(sa, fillEnd); return t => cx + midR * Math.cos(i(t) - Math.PI / 2); })
-    .attrTween("cy", () => { const i = d3.interpolate(sa, fillEnd); return t => cy + midR * Math.sin(i(t) - Math.PI / 2); });
-  const dotEndX = cx + midR * Math.cos(fillEnd - Math.PI / 2), dotEndY = cy + midR * Math.sin(fillEnd - Math.PI / 2);
-  svg.append("circle").attr("cx", dotEndX).attr("cy", dotEndY).attr("r", 2).attr("fill", "#fff").attr("opacity", 0)
-    .transition().delay(880).duration(150).attr("opacity", 1);
-  svg.append("text").attr("x", cx).attr("y", cy - 6)
-    .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-    .attr("font-family", "Satoshi,Inter,system-ui,sans-serif")
-    .attr("font-size", "34px").attr("font-weight", "900").attr("fill", hex).text(score);
-  svg.append("text").attr("x", cx).attr("y", cy + 20)
-    .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-    .attr("font-family", "Satoshi,Inter,system-ui,sans-serif")
-    .attr("font-size", "10px").attr("font-weight", "500").attr("fill", "#5A6A88").text("/ 100");
+  if (!res.ok) throw new Error('Readiness fetch error ' + res.status);
+  return res.json();
 }
 
-export function setPillar(id, score, value, deltaVal, color) {
-  const pct = rmSk(`pp-${id}`); if (pct) pct.textContent = `${score}%`;
-  setTimeout(() => { const b = document.getElementById(`pb-${id}`); if (b) b.style.width = score + '%'; }, 60);
-  const val = rmSk(`pv-${id}`); if (val) { val.textContent = value; val.style.color = color; }
-  const dd = document.getElementById(`pd-${id}`);
-  if (dd && deltaVal !== null && deltaVal !== undefined) {
-    const pos = deltaVal > 0, zero = deltaVal === 0;
-    dd.textContent = zero ? '' : (pos ? `↑${Math.abs(deltaVal)}` : `↓${Math.abs(deltaVal)}`);
-    dd.className = 'pillar-delta ' + (zero ? 'neu' : pos ? 'pos' : 'neg');
+// ── Draw ──────────────────────────────────────────────────
+function drawChart(rows, days) {
+  const outer = document.getElementById('re-chart-outer');
+  if (!outer) return;
+  const old = outer.querySelector('svg');
+  if (old) old.remove();
+
+  const W = outer.clientWidth  || 340;
+  const H = outer.clientHeight || 280;
+  const pT = 14, pB = 36, pL = 34, pR = 40;
+
+  // Slice to window
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  const vis = rows.filter(r => r.date >= cutStr && r.body_battery_at_wake != null);
+  if (!vis.length) return;
+
+  const n = vis.length;
+  // Scale: 0–10 (maps to 0–100% battery)
+  const minV = 0, maxV = 10;
+
+  const xS = i => pL + (i / Math.max(n - 1, 1)) * (W - pL - pR);
+  const yS = v => pT + ((maxV - v) / (maxV - minV)) * (H - pT - pB);
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  Object.assign(svg.style, { position:'absolute', inset:'0', width:'100%', height:'100%', display:'block', overflow:'visible' });
+
+  const mk = (tag, attrs, txt) => {
+    const el = document.createElementNS(ns, tag);
+    if (attrs) Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, String(v)));
+    if (txt !== undefined) el.textContent = txt;
+    return el;
+  };
+
+  // Y axis grid lines: 0.0 / 3.3 / 6.6 / 10.0
+  const yTicks = [0, 3.3, 6.6, 10];
+  const pctLabels = { 0: '0%', 3.3: '33%', 6.6: '66%', 10: '100%' };
+  const pctColors = { 0: C_RED, 3.3: C_AMBER, 6.6: '#3B82F6', 10: C_GREEN };
+
+  yTicks.forEach(t => {
+    const y = yS(t);
+    svg.appendChild(mk('line', { x1:pL, x2:W-pR, y1:y, y2:y, stroke:'rgba(255,255,255,0.07)', 'stroke-width':'1' }));
+    // Left axis numeric
+    svg.appendChild(mk('text', { x:pL-5, y:y+3.5, 'font-size':'9', fill:'#3B82F6', 'text-anchor':'end', 'font-weight':'600' }, t.toFixed(1)));
+    // Right axis pct
+    svg.appendChild(mk('text', { x:W-pR+5, y:y+3.5, 'font-size':'9', fill: pctColors[t], 'text-anchor':'start', 'font-weight':'700' }, pctLabels[t]));
+  });
+
+  // X dashed vertical grid + date labels
+  const every = n > 20 ? Math.ceil(n / 10) : n > 10 ? 3 : 1;
+  vis.forEach((d, i) => {
+    if (i % every !== 0 && i !== n - 1) return;
+    const x = xS(i);
+    svg.appendChild(mk('line', { x1:x, x2:x, y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.06)', 'stroke-dasharray':'3,3', 'stroke-width':'1' }));
+    const dt = new Date(d.date + 'T12:00:00');
+    const lbl = days <= 7
+      ? dt.toLocaleDateString('en-GB', { weekday:'short' })
+      : dt.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    svg.appendChild(mk('text', { x, y:H-pB+14, 'text-anchor':'middle', 'font-size':'9', fill:'rgba(255,255,255,0.3)' }, lbl));
+  });
+
+  // ── Target Exertion Band ────────────────────────────────
+  // Band = 30%–80% of recovery (body_battery_at_wake / 10)
+  const bandPts = vis.map((d, i) => {
+    const rec = (d.body_battery_at_wake || 0) / 10;
+    return { x: xS(i), yMin: yS(rec * 0.3), yMax: yS(rec * 0.8) };
+  });
+  const topPts  = bandPts.map(p => p.x + ',' + p.yMax).join(' ');
+  const botPts  = [...bandPts].reverse().map(p => p.x + ',' + p.yMin).join(' ');
+  svg.appendChild(mk('polygon', { points: topPts + ' ' + botPts, fill: C_BAND }));
+
+  // ── Recovery line (grey) ────────────────────────────────
+  const recPts = vis.map((d, i) => xS(i) + ',' + yS((d.body_battery_at_wake || 0) / 10)).join(' ');
+  svg.appendChild(mk('polyline', { points: recPts, fill:'none', stroke: C_RECOVERY, 'stroke-width':'2.5', 'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+  // Recovery dots + % labels
+  vis.forEach((d, i) => {
+    const recVal = (d.body_battery_at_wake || 0) / 10;
+    const cx = xS(i), cy = yS(recVal);
+    const dc = dotColor(d.hrv_status);
+    svg.appendChild(mk('circle', { cx, cy, r:'5', fill: dc, stroke:'#101828', 'stroke-width':'2' }));
+    // Pct label above dot
+    const pctTxt = Math.round(recVal * 10) + '%';
+    const labelY = cy - 9;
+    svg.appendChild(mk('text', { x:cx, y:labelY, 'text-anchor':'middle', 'font-size':'9', fill:'#CDD8EE', 'font-weight':'700' }, pctTxt));
+  });
+
+  // ── Exertion line (blue) ────────────────────────────────
+  const exPts = vis.map((d, i) => xS(i) + ',' + yS((d.body_battery_drained || 0) / 10)).join(' ');
+  svg.appendChild(mk('polyline', { points: exPts, fill:'none', stroke: C_EXERTION, 'stroke-width':'2.5', 'stroke-linecap':'round', 'stroke-linejoin':'round' }));
+
+  // Exertion dots (solid blue, no label to avoid clash — label on hover)
+  vis.forEach((d, i) => {
+    const exVal = (d.body_battery_drained || 0) / 10;
+    svg.appendChild(mk('circle', { cx:xS(i), cy:yS(exVal), r:'4', fill: C_EXERTION, stroke:'#101828', 'stroke-width':'2' }));
+  });
+
+  // ── Hover overlay ───────────────────────────────────────
+  const overlay = mk('rect', { x:pL, y:pT, width:W-pL-pR, height:H-pT-pB, fill:'transparent' });
+  overlay.style.cursor = 'crosshair';
+  const vLine = mk('line', { y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.25)', 'stroke-width':'1', 'stroke-dasharray':'3,2' });
+  vLine.style.display = 'none';
+  const hRecDot = mk('circle', { r:'6', fill: C_RECOVERY, stroke:'#101828', 'stroke-width':'2' }); hRecDot.style.display='none';
+  const hExDot  = mk('circle', { r:'6', fill: C_EXERTION,  stroke:'#101828', 'stroke-width':'2' }); hExDot.style.display='none';
+  [vLine, hRecDot, hExDot, overlay].forEach(el => svg.appendChild(el));
+
+  const tt = document.getElementById('re-tt');
+
+  const showTip = (cx, cy, lx) => {
+    const idx = Math.max(0, Math.min(n-1, Math.round(((lx - pL) / (W-pL-pR)) * (n-1))));
+    const d = vis[idx];
+    const recVal = (d.body_battery_at_wake || 0) / 10;
+    const exVal  = (d.body_battery_drained || 0) / 10;
+    const bandMin = recVal * 0.3, bandMax = recVal * 0.8;
+    const inBand  = exVal >= bandMin && exVal <= bandMax;
+
+    vLine.setAttribute('x1', xS(idx)); vLine.setAttribute('x2', xS(idx)); vLine.style.display = '';
+    hRecDot.setAttribute('cx', xS(idx)); hRecDot.setAttribute('cy', yS(recVal));
+    hRecDot.setAttribute('fill', dotColor(d.hrv_status)); hRecDot.style.display = '';
+    hExDot.setAttribute('cx', xS(idx));  hExDot.setAttribute('cy', yS(exVal));  hExDot.style.display = '';
+
+    const dls = new Date(d.date+'T12:00:00').toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'short' });
+    const exStatus = exVal > bandMax ? '⬆️ Above target' : exVal < bandMin ? '⬇️ Below target' : '✅ In target range';
+
+    tt.innerHTML = `
+      <div class="rett-date">${dls}</div>
+      <div class="rett-row"><span style="color:${C_RECOVERY}">Recovery</span><span style="color:#CDD8EE;font-weight:900">${Math.round(recVal * 10)}%</span></div>
+      <div class="rett-row"><span style="color:${C_EXERTION}">Exertion</span><span style="color:#CDD8EE;font-weight:900">${Math.round(exVal * 10)}%</span></div>
+      <div class="rett-row"><span style="color:#5A6A88">Target range</span><span style="color:#8898BB">${Math.round(bandMin*10)}–${Math.round(bandMax*10)}%</span></div>
+      <div class="rett-row" style="margin-top:4px"><span style="color:#8898BB;font-size:.62rem">${exStatus}</span></div>
+      ${d.sleep_score ? `<div class="rett-row"><span style="color:#5A6A88">Sleep score</span><span style="color:#8898BB">${d.sleep_score}</span></div>` : ''}
+    `;
+    tt.style.left = Math.min(cx+14, window.innerWidth-190) + 'px';
+    tt.style.top  = Math.max(8, cy-80) + 'px';
+    tt.classList.add('vis');
+  };
+
+  overlay.addEventListener('mousemove', e => { const r=svg.getBoundingClientRect(); showTip(e.clientX, e.clientY, e.clientX-r.left); });
+  overlay.addEventListener('touchmove', e => { e.preventDefault(); const r=svg.getBoundingClientRect(); const t=e.touches[0]; showTip(t.clientX, t.clientY, t.clientX-r.left); }, { passive:false });
+  overlay.addEventListener('mouseleave', () => { vLine.style.display='none'; hRecDot.style.display='none'; hExDot.style.display='none'; tt.classList.remove('vis'); });
+
+  outer.appendChild(svg);
+}
+
+// ── Update status block ───────────────────────────────────
+function updateStatus(rows, days) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const vis = rows.filter(r => r.date >= cutoff.toISOString().slice(0, 10));
+  if (!vis.length) return;
+
+  const today = vis[vis.length - 1];
+  const meta = STATUS_META[today.hrv_status] || STATUS_META.UNKNOWN;
+
+  const labelEl = document.getElementById('re-status-label');
+  const msgEl   = document.getElementById('re-status-msg');
+  if (labelEl) { labelEl.textContent = meta.label; labelEl.style.color = meta.color; }
+  if (msgEl)   { msgEl.textContent = meta.msg; }
+}
+
+// ── Public ────────────────────────────────────────────────
+export function readinessSetPeriod(days) {
+  rs.activeDays = days;
+  document.querySelectorAll('.re-period-btn').forEach(b =>
+    b.classList.toggle('active', +b.dataset.d === days));
+  if (rs.rows.length) {
+    drawChart(rs.rows, days);
+    updateStatus(rs.rows, days);
   }
 }
+window.readinessSetPeriod = readinessSetPeriod;
 
-export function renderSleep(row, valPrefix, barPrefix) {
-  valPrefix = valPrefix || 'sl-';
-  barPrefix = barPrefix || 'slb-';
-  const total = row.sleep_duration_s || 1;
-  [{ s: row.deep_sleep_s, id: 'deep' }, { s: row.light_sleep_s, id: 'light' }, { s: row.rem_sleep_s, id: 'rem' }, { s: row.awake_s, id: 'awake' }]
-    .forEach(({ s, id }) => {
-      const el = rmSk(`${valPrefix}${id}`); if (el) el.textContent = s ? hmStr(s) : '—';
-      const pct = s ? Math.round(s / total * 100) : 0;
-      setTimeout(() => { const b = document.getElementById(`${barPrefix}${id}`); if (b) b.style.width = pct + '%'; }, 120);
-    });
-}
+export async function renderReadiness() {
+  injectStyles();
 
-export function rDrawHistory(rows) {
-  const wrap = document.getElementById("r-ch-wrap");
-  if (!wrap) return;
-  d3.select("#r-ch-wrap").selectAll("svg").remove();
-  const W = wrap.clientWidth || 340, H = wrap.clientHeight || 140, n = rows.length;
-  const pT = 8, pB = 22, pL = 20, pR = 8, iW = W - pL - pR, iH = H - pT - pB;
-  const yS = d3.scaleLinear().domain([0, 100]).range([pT + iH, pT]);
-  const xS = i => pL + (i + 0.5) * (iW / n);
-  const svg = d3.select("#r-ch-wrap").append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("preserveAspectRatio", "none");
-  const defs = svg.append("defs");
-  const gr = defs.append("linearGradient").attr("id", "rg2").attr("x1", "0").attr("y1", "0").attr("x2", "0").attr("y2", "1");
-  gr.append("stop").attr("offset", "0%").attr("stop-color", "#00D4C8").attr("stop-opacity", .3);
-  gr.append("stop").attr("offset", "100%").attr("stop-color", "#00D4C8").attr("stop-opacity", 0);
-  [{ lo: 0, hi: 45, col: "#FF5A6E" }, { lo: 45, hi: 65, col: "#F5C842" }, { lo: 65, hi: 80, col: "#00D4C8" }, { lo: 80, hi: 100, col: "#00E5A0" }]
-    .forEach(({ lo, hi, col }) => {
-      svg.append("rect").attr("x", pL).attr("y", yS(hi)).attr("width", iW).attr("height", yS(lo) - yS(hi)).attr("fill", col).attr("opacity", .04);
-    });
-  [45, 65, 80].forEach(v => {
-    const y = yS(v);
-    svg.append("line").attr("x1", pL).attr("x2", W - pR).attr("y1", y).attr("y2", y).attr("stroke", "#1A2640").attr("stroke-width", .5);
-    svg.append("text").attr("x", pL - 3).attr("y", y + 3.5).attr("text-anchor", "end").attr("font-size", "6.5px").attr("font-family", "Satoshi,Inter,sans-serif").attr("fill", "#2E3D58").text(v);
-  });
-  const pts = rows.map((r, i) => r._score != null ? { x: xS(i), y: yS(r._score), s: r._score, r } : null).filter(Boolean);
-  if (pts.length >= 2) {
-    const line = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveCatmullRom.alpha(0.5));
-    const area = d3.area().x(d => d.x).y0(pT + iH).y1(d => d.y).curve(d3.curveCatmullRom.alpha(0.5));
-    svg.append("path").datum(pts).attr("d", area).attr("fill", "url(#rg2)");
-    const p = svg.append("path").datum(pts).attr("d", line).attr("fill", "none").attr("stroke", "#00D4C8").attr("stroke-width", 1.8).attr("stroke-linecap", "round");
-    const len = p.node().getTotalLength();
-    p.attr("stroke-dasharray", len).attr("stroke-dashoffset", len).transition().duration(800).ease(d3.easeCubicOut).attr("stroke-dashoffset", 0);
-    pts.forEach(pt => {
-      const st = readinessState(pt.s);
-      svg.append("circle").attr("cx", pt.x).attr("cy", pt.y).attr("r", 2.5).attr("fill", st.hex).attr("stroke", "#06090F").attr("stroke-width", 1);
-    });
-    const lp = pts[pts.length - 1], ls = readinessState(lp.s);
-    svg.append("circle").attr("cx", lp.x).attr("cy", lp.y).attr("r", 5.5).attr("fill", ls.hex).attr("opacity", .18);
-    svg.append("circle").attr("cx", lp.x).attr("cy", lp.y).attr("r", 3).attr("fill", ls.hex);
-    svg.append("circle").attr("cx", lp.x).attr("cy", lp.y).attr("r", 1.2).attr("fill", "#fff");
-  }
-  const todayStr = localDate(0), every = n <= 7 ? 1 : n <= 14 ? 2 : 4;
-  rows.forEach((r, i) => {
-    if (i % every !== 0 && r.date !== todayStr) return;
-    const d = new Date(r.date + "T12:00:00");
-    const lbl = String(d.getDate()).padStart(2, "0") + "/" + (d.getMonth() + 1);
-    svg.append("text").attr("x", xS(i)).attr("y", H - 4).attr("text-anchor", "middle")
-      .attr("font-size", "7px").attr("font-family", "Satoshi,Inter,sans-serif")
-      .attr("fill", r.date === todayStr ? "#00D4C8" : "#2E3D58")
-      .attr("font-weight", r.date === todayStr ? "700" : "400").text(lbl);
-  });
-  const tt = document.getElementById("tt");
-  svg.append("rect").attr("x", pL).attr("y", pT).attr("width", iW).attr("height", iH)
-    .attr("fill", "transparent").attr("cursor", "crosshair")
-    .on("mousemove", function (event) {
-      const [mx] = d3.pointer(event, this);
-      const i = clamp(Math.round(mx / (iW / n) - 0.5), 0, n - 1);
-      const row = rows[i], sc = row._score, st = readinessState(sc);
-      const dl = new Date(row.date + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-      tt.style.opacity = "1"; tt.style.left = (event.clientX + 14) + "px"; tt.style.top = (event.clientY - 14) + "px";
-      tt.innerHTML = `<div style="color:#5A6A88;font-size:10px;font-weight:600;margin-bottom:3px">${dl}</div>
-        <div><b style="color:${st.hex}">${sc}</b><span style="color:#5A6A88"> / 100 · ${st.label}</span></div>
-        ${row.hrv_last_night ? `<div style="font-size:10.5px;color:#8898BB">HRV <b style="color:#00D4C8">${(+row.hrv_last_night).toFixed(1)}</b> ms</div>` : ''}
-        ${row.resting_hr ? `<div style="font-size:10.5px;color:#8898BB">RHR <b style="color:#FF5A6E">${row.resting_hr}</b> bpm</div>` : ''}
-        ${row.sleep_score ? `<div style="font-size:10.5px;color:#8898BB">Sleep <b style="color:#7B9EFF">${row.sleep_score}</b>/100</div>` : ''}`;
-    }).on("mouseleave", () => tt.style.opacity = "0");
-}
-
-export function rSetRange(days) {
-  state.rActiveDay = days;
-  document.querySelectorAll(".r-range-btn").forEach(b => b.classList.toggle("active", +b.dataset.d === days));
-  rDrawHistory(state.allRows.slice(-days));
-}
-
-window.rSetRange = rSetRange;
-
-export function renderReadiness(rows) {
   const container = document.getElementById('panel-readiness');
-  if (container.innerHTML.trim() === '') {
-    container.innerHTML = readinessHTML;
-  }
+  container.innerHTML = `
+    <div class="re-title">Recovery vs. Exertion</div>
 
-  const ts = localDate(0), ys = localDate(1);
-  const today = rows.find(r => r.date === ts) || rows[rows.length - 1];
-  const yest = rows.find(r => r.date === ys) || (rows.length >= 2 ? rows[rows.length - 2] : null);
-  const s = scoreRow(today, rows);
-  const sp = yest ? scoreRow(yest, rows) : null;
-  const st = readinessState(s.composite);
-  const se = rmSk("score-state"); if (se) { se.textContent = st.label; se.style.color = st.color; }
-  document.getElementById("hero-desc").textContent = DESCS[st.label] || "";
-  document.getElementById("hero-sub").textContent = today.hrv_status ? `Garmin status: ${today.hrv_status.charAt(0) + today.hrv_status.slice(1).toLowerCase()}` : "";
-  drawGauge(s.composite, st.hex);
-  const dHrv = yest && today.hrv_last_night && yest.hrv_last_night ? Math.round(+today.hrv_last_night - +yest.hrv_last_night) : null;
-  const dSlp = sp ? s.sleep - sp.sleep : null;
-  const dRhr = yest && today.resting_hr && yest.resting_hr ? -(today.resting_hr - yest.resting_hr) : null;
-  const dSt = yest && today.stress_avg != null && yest.stress_avg != null ? -(today.stress_avg - yest.stress_avg) : null;
-  setPillar("hrv", s.hrv, today.hrv_last_night ? (+today.hrv_last_night).toFixed(1) : "—", dHrv, "var(--c-hrv)");
-  setPillar("sleep", s.sleep, today.sleep_score != null ? String(today.sleep_score) : "—", dSlp, "var(--c-sleep)");
-  setPillar("rhr", s.rhr, today.resting_hr || "—", dRhr, "var(--c-rhr)");
-  setPillar("stress", s.stress, today.stress_avg != null ? String(today.stress_avg) : "—", dSt, "var(--c-stress)");
-  renderSleep(today, 'sl-', 'slb-');
-  const times = rows.map(r => r.updated_at).filter(Boolean).sort();
-  if (times.length) {
-    const d = new Date(times[times.length - 1]);
-    document.getElementById("sync-footer").textContent =
-      "↻ Last synced " + d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " · " +
-      d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    <div class="re-period-wrap">
+      ${PERIODS.map(p => `
+        <button class="re-period-btn${p.days === DEFAULT_DAYS ? ' active' : ''}"
+          data-d="${p.days}" onclick="readinessSetPeriod(${p.days})">${p.label}</button>
+      `).join('')}
+    </div>
+
+    <div class="re-card">
+      <div class="re-chart-outer" id="re-chart-outer"></div>
+      <div class="re-legend">
+        <div class="re-legend-item">
+          <div class="re-leg-line" style="background:${C_RECOVERY}"></div>
+          Recovery
+        </div>
+        <div class="re-legend-item">
+          <div class="re-leg-box"></div>
+          Target Exertion Range
+        </div>
+        <div class="re-legend-item">
+          <div class="re-leg-line" style="background:${C_EXERTION}"></div>
+          Exertion
+        </div>
+        <div class="re-legend-item" style="gap:6px">
+          <div style="display:flex;gap:3px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${C_GREEN}"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${C_AMBER}"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${C_RED}"></div>
+          </div>
+          HRV Status
+        </div>
+      </div>
+    </div>
+
+    <div class="re-status-block">
+      <div class="re-status-label" id="re-status-label">—</div>
+      <div class="re-status-msg" id="re-status-msg"></div>
+    </div>
+
+    <div id="re-tt" class="re-tt"></div>
+  `;
+
+  try {
+    if (!rs.fetched) {
+      rs.rows = await fetchReadiness();
+      rs.fetched = true;
+    }
+
+    if (!rs.rows.length) {
+      document.getElementById('re-chart-outer').innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#5A6A88;font-size:.8rem;">No readiness data found</div>';
+      return;
+    }
+
+    updateStatus(rs.rows, rs.activeDays);
+
+    const outer = document.getElementById('re-chart-outer');
+    if (outer.clientWidth > 0) {
+      drawChart(rs.rows, rs.activeDays);
+    } else {
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          if (e.contentRect.width > 0) { ro.disconnect(); drawChart(rs.rows, rs.activeDays); }
+        }
+      });
+      ro.observe(outer);
+    }
+  } catch (e) {
+    console.error(e);
+    document.getElementById('panel-readiness').innerHTML =
+      `<div style="padding:24px;text-align:center;color:#F87171;font-size:.8rem;">⚠️ ${e.message}</div>`;
   }
-  rSetRange(state.rActiveDay);
 }
