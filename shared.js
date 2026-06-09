@@ -10,7 +10,6 @@ export const TAB_SUBTITLES = {
   load:      "Training Load"
 };
 
-// Global state shared across modules
 export const state = {
   allRows: [],
   currentTab: 'dashboard',
@@ -32,7 +31,6 @@ export const state = {
   yoyHidden: new Set()
 };
 
-// Utility functions
 export const localDate = (n = 0) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -70,7 +68,6 @@ export function getMonday(d) {
   return dt;
 }
 
-// Shared Data Fetching
 export async function fetchData() {
   const since = localDate(30);
   const cols = 'date,resting_hr,hrv_last_night,hrv_weekly_avg,hrv_status,sleep_score,sleep_duration_s,rem_sleep_s,deep_sleep_s,light_sleep_s,awake_s,stress_avg,updated_at';
@@ -83,45 +80,43 @@ export async function fetchData() {
   return await res.json();
 }
 
-// ── Sync bottom nav active state to a tab name ──────────────
-// Called after swipe gestures so the nav reflects the current panel
-function syncNavToTab(tab) {
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.classList.toggle('active', item.dataset.tab === tab);
-  });
-}
-
-// Tab switching logic
 export async function switchTab(tab) {
-  if (tab === state.currentTab) return;
-  state.currentTab = tab;
+  // Allow same-tab re-selection (no-op on slider, but still syncs nav)
+  const isSame = tab === state.currentTab;
 
-  const idx = TABS.indexOf(tab);
-  const pct = idx * (100 / TABS.length);
-  document.getElementById('panels-slider').style.transform = 'translateX(-' + pct + '%)';
+  if (!isSame) {
+    state.currentTab = tab;
+    const idx = TABS.indexOf(tab);
+    const pct = idx * (100 / TABS.length);
+    document.getElementById('panels-slider').style.transform = 'translateX(-' + pct + '%)';
+    document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
+    updateDots(tab);
+  }
 
-  // Update subtitle
-  document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
+  // Always sync nav active state (covers swipe + tap)
+  if (typeof window.syncNavToTab === 'function') window.syncNavToTab(tab);
 
-  // Sync bottom nav
-  syncNavToTab(tab);
-
-  // Update swipe dots
-  updateDots(tab);
-
-  // Hide any stray tooltips from previous tab
+  // Hide stray tooltips from previous tab
   ['load-tt', 're-tt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.classList.remove('vis'); el.style.opacity = '0'; }
   });
 
-  // Lazy load and render each tab
+  if (isSame) return;
+
+  // ── Lazy render each tab ────────────────────────────────
+  // Guards use state flags so each tab only fetches/renders once.
+  // Tabs that need allRows check it exists before rendering.
+
   if (tab === 'dashboard' && !state.dashboardRendered) {
     state.dashboardRendered = true;
     const { renderDashboard } = await import('./tab-dashboard.js');
     renderDashboard(state.allRows);
+    return;
   }
-  if (tab === 'wellness' && state.allRows.length) {
+
+  if (tab === 'wellness') {
+    if (!state.allRows.length) return;
     const { renderWellness, wSetRange } = await import('./tab-wellness.js');
     const container = document.getElementById('panel-wellness');
     if (container.innerHTML.trim() === '') {
@@ -129,21 +124,36 @@ export async function switchTab(tab) {
     } else {
       requestAnimationFrame(() => wSetRange(state.wActiveDay));
     }
+    return;
   }
-  if (tab === 'readiness' && !state.readinessRendered && state.allRows.length) {
-    state.readinessRendered = true;
-    const { renderReadiness } = await import('./tab-readiness.js');
-    renderReadiness(state.allRows);
+
+  if (tab === 'readiness') {
+    if (!state.allRows.length) return;
+    if (!state.readinessRendered) {
+      state.readinessRendered = true;
+      const { renderReadiness } = await import('./tab-readiness.js');
+      renderReadiness(state.allRows);
+    }
+    return;
   }
-  if (tab === 'volume' && !state.volLoaded) {
-    state.volLoaded = true;
-    const { fetchAndRenderVolume } = await import('./tab-volume.js');
-    fetchAndRenderVolume();
+
+  if (tab === 'volume') {
+    if (!state.volLoaded) {
+      state.volLoaded = true;
+      const { fetchAndRenderVolume } = await import('./tab-volume.js');
+      fetchAndRenderVolume();
+    }
+    return;
   }
-  if (tab === 'load' && !state.loadRendered) {
-    state.loadRendered = true;
-    const { renderLoad } = await import('./tab-load.js');
-    renderLoad(state.allRows);
+
+  if (tab === 'load') {
+    if (!state.allRows.length) return;
+    if (!state.loadRendered) {
+      state.loadRendered = true;
+      const { renderLoad } = await import('./tab-load.js');
+      renderLoad(state.allRows);
+    }
+    return;
   }
 }
 
@@ -158,7 +168,6 @@ export function hideHint() {
   document.getElementById('swipe-hint').classList.add('hidden');
 }
 
-// Swipe detection initialization
 export function initSwipe() {
   const wrap = document.getElementById('panels-wrap');
   let tx = 0, ty = 0, locked = false, cancelled = false;
@@ -194,7 +203,6 @@ export function initSwipe() {
   }, { passive: true });
 }
 
-// Score Calculation logic (shared by Wellness and Readiness)
 export function scoreRow(r, rows) {
   const hrv  = parseFloat(r.hrv_last_night);
   const hrvA = parseFloat(r.hrv_weekly_avg);
