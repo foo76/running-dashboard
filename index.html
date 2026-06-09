@@ -70,7 +70,7 @@
 
     <button class="nav-item" data-tab="volume" aria-label="Volume">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 3h18v18H3z" rx="2"/>
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
         <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
       </svg>
       <span class="nav-label">Volume</span>
@@ -87,49 +87,39 @@
   <script type="module">
     import { state, fetchData, switchTab, initSwipe, localDate, scoreRow } from './shared.js';
     import { renderDashboard } from './tab-dashboard.js';
-    import { renderWellness } from './tab-wellness.js';
 
-    window.switchTab = switchTab;
-
-    // ── Bottom nav active state + tab switching ──────────────
+    // ── Wire up bottom nav ──────────────────────────────────
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
       item.addEventListener('click', () => {
-        navItems.forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-
-        // Hide any stray tooltips on tab change
-        ['load-tt', 're-tt'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) { el.classList.remove('vis'); el.style.opacity = '0'; }
-        });
-
         switchTab(item.dataset.tab);
       });
     });
 
-    // ── Keep nav in sync when tab changes via swipe ───────────
-    // Call this from shared.js after a swipe completes
-    window.syncNavToTab = function(tabName) {
-      navItems.forEach(n => {
-        n.classList.toggle('active', n.dataset.tab === tabName);
-      });
+    // ── Expose syncNavToTab globally so shared.js can call it ──
+    window.syncNavToTab = function(tab) {
+      navItems.forEach(n => n.classList.toggle('active', n.dataset.tab === tab));
     };
 
     async function init() {
+      // Set current date
       const d = new Date();
       document.getElementById('current-date').textContent = d.toLocaleDateString('en-GB', {
         weekday: 'short', day: 'numeric', month: 'short'
       });
 
+      // Initialize swipe gestures
       initSwipe();
 
       try {
         state.allRows = await fetchData();
+
         state.allRows.forEach(r => {
           r._score = scoreRow(r, state.allRows).composite;
         });
+
         renderDashboard(state.allRows);
+
       } catch (e) {
         console.error('Initialization error:', e);
         const container = document.getElementById('panel-dashboard');
