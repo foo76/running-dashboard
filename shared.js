@@ -19,8 +19,8 @@ export const state = {
   volLoaded: false,
   loadRendered: false,
   readinessRendered: false,
-  hrvMode: 'last_night',       // 'last_night' | 'weekly_avg'
-  sleepChartMode: 'bar',       // 'bar' | 'line'
+  hrvMode: 'last_night',
+  sleepChartMode: 'bar',
   wActiveDay: 7,
   rActiveDay: 7,
   volPeriodMonths: 3,
@@ -83,6 +83,14 @@ export async function fetchData() {
   return await res.json();
 }
 
+// ── Sync bottom nav active state to a tab name ──────────────
+// Called after swipe gestures so the nav reflects the current panel
+function syncNavToTab(tab) {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.tab === tab);
+  });
+}
+
 // Tab switching logic
 export async function switchTab(tab) {
   if (tab === state.currentTab) return;
@@ -91,11 +99,21 @@ export async function switchTab(tab) {
   const idx = TABS.indexOf(tab);
   const pct = idx * (100 / TABS.length);
   document.getElementById('panels-slider').style.transform = 'translateX(-' + pct + '%)';
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+
+  // Update subtitle
   document.getElementById('tab-subtitle').textContent = TAB_SUBTITLES[tab];
 
+  // Sync bottom nav
+  syncNavToTab(tab);
+
+  // Update swipe dots
   updateDots(tab);
+
+  // Hide any stray tooltips from previous tab
+  ['load-tt', 're-tt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('vis'); el.style.opacity = '0'; }
+  });
 
   // Lazy load and render each tab
   if (tab === 'dashboard' && !state.dashboardRendered) {
@@ -104,14 +122,14 @@ export async function switchTab(tab) {
     renderDashboard(state.allRows);
   }
   if (tab === 'wellness' && state.allRows.length) {
-  const { renderWellness, wSetRange } = await import('./tab-wellness.js');
-  const container = document.getElementById('panel-wellness');
-  if (container.innerHTML.trim() === '') {
-    renderWellness(state.allRows);
-  } else {
-    requestAnimationFrame(() => wSetRange(state.wActiveDay));
+    const { renderWellness, wSetRange } = await import('./tab-wellness.js');
+    const container = document.getElementById('panel-wellness');
+    if (container.innerHTML.trim() === '') {
+      renderWellness(state.allRows);
+    } else {
+      requestAnimationFrame(() => wSetRange(state.wActiveDay));
+    }
   }
-}
   if (tab === 'readiness' && !state.readinessRendered && state.allRows.length) {
     state.readinessRendered = true;
     const { renderReadiness } = await import('./tab-readiness.js');
