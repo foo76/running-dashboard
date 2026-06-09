@@ -7,6 +7,7 @@
   --safe-b:env(safe-area-inset-bottom,0px);
   --optimal:#00E5A0; --good:#00D4C8; --compromised:#F5C842; --low:#FF5A6E;
   --c-hrv:#00D4C8; --c-rhr:#FF5A6E; --c-sleep:#7B9EFF; --c-stress:#F5A623;
+  --nav-h: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{-webkit-font-smoothing:antialiased;}
@@ -15,12 +16,14 @@ body{
   background:var(--bg); color:var(--text);
   min-height:100dvh; display:flex; flex-direction:column;
   overflow-x:hidden;
+  padding-bottom: var(--nav-h);
 }
 
 /* ── Shared header ── */
 .app-header{
+  position:sticky; top:0; z-index:100; background:var(--bg);
   display:flex; justify-content:space-between; align-items:center;
-  padding:calc(var(--safe-t) + 16px) 16px 0;
+  padding:calc(var(--safe-t) + 16px) 16px 10px;
 }
 .brand{ font-size:.6rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
 .subtitle{ font-size:.68rem; color:var(--label); margin-top:1px; }
@@ -30,32 +33,10 @@ body{
   border-radius:20px; padding:4px 11px; letter-spacing:.04em; white-space:nowrap;
 }
 
-/* ── Tab bar ── */
-.tab-bar{
-  display:flex; gap:0; margin:12px 16px 0;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:14px; padding:3px; flex-shrink:0;
-}
-.tab-btn{
-  flex:1; padding:9px 0; font-size:.65rem; font-weight:700;
-  font-family:inherit; border:none; border-radius:11px;
-  background:transparent; color:var(--label); cursor:pointer;
-  transition:background 200ms ease, color 200ms ease, box-shadow 200ms ease;
-  letter-spacing:.04em; -webkit-tap-highlight-color:transparent;
-  display:flex; align-items:center; justify-content:center; gap:4px;
-  white-space:nowrap;
-}
-.tab-btn:active{ transform:scale(.97); }
-.tab-btn.active{
-  background:var(--card); color:var(--good);
-  box-shadow:0 2px 10px rgba(0,0,0,.5);
-}
-.tab-btn .tab-icon{ font-size:.8rem; }
-
 /* ── Swipe hint dots ── */
 .swipe-hint{
   display:flex; justify-content:center; align-items:center; gap:5px;
-  padding:6px 0 2px; flex-shrink:0;
+  padding:4px 0 2px; flex-shrink:0;
   transition:opacity 600ms ease;
 }
 .swipe-hint.hidden{ opacity:0; pointer-events:none; }
@@ -84,6 +65,75 @@ body{
   padding:10px 16px calc(var(--safe-b) + 16px);
   overflow-y:auto; overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
+}
+
+/* ── Bottom Navigation (Spotify-style) ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: #0a0d14;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding-top: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: var(--nav-h);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #4a5a78;
+  min-height: 44px;
+  min-width: 44px;
+  font-family: 'Satoshi','Inter',system-ui,sans-serif;
+  transition: color 180ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-item:active {
+  transform: scale(0.9);
+  transition: transform 80ms ease, color 180ms ease;
+}
+
+.nav-item.active {
+  color: #ffffff;
+}
+
+.nav-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  transition: stroke-width 180ms ease;
+}
+
+.nav-item.active .nav-icon {
+  stroke-width: 2.5;
+}
+
+.nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.nav-item.active .nav-label {
+  font-weight: 700;
 }
 
 /* ══════════════════════════════════════════════
@@ -351,7 +401,6 @@ body{
 .yoy-toggle-all{background:transparent;border:none;color:var(--dim);font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:4px 10px;}
 .yoy-tooltip{position:fixed;pointer-events:none;opacity:0;background:rgba(12,18,32,0.95);border:1px solid var(--border);border-radius:8px;padding:8px 10px;z-index:9999;box-shadow:0 4px 15px rgba(0,0,0,0.4);font-size:.65rem;backdrop-filter:blur(4px);}
 
-
 /* ══ DASHBOARD TAB ══ */
 .dash-section-title {
   font-size:.56rem; font-weight:700; letter-spacing:.16em;
@@ -432,9 +481,6 @@ body{
   font-size:.6rem; color:var(--dim); text-align:left;
   letter-spacing:.05em; margin-top:2px;
 }
-
-
-
 
 /* ══ LOAD TAB (PMC) ══ */
 .load-header {
@@ -522,25 +568,13 @@ body{
   font-size:.68rem; color:var(--label); margin-bottom:2px; font-weight:600;
 }
 
-/* Freeze top nav bar */
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--bg);
+/* Readiness tooltip */
+.re-tt {
+  position:fixed; pointer-events:none; opacity:0;
+  background:rgba(12,18,32,0.96); border:1px solid var(--border);
+  border-radius:10px; padding:10px 12px; z-index:9999;
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
+  transition:opacity 120ms ease; min-width:160px;
+  backdrop-filter:blur(6px);
 }
-
-.tab-bar {
-  position: sticky;
-  top: calc(var(--safe-t) + 48px); /* approx height of header */
-  z-index: 99;
-  background: var(--bg);
-  padding-bottom: 4px;
-}
-
-.swipe-hint {
-  position: sticky;
-  top: calc(var(--safe-t) + 100px); /* below header + tab bar */
-  z-index: 98;
-  background: var(--bg);
-}
+.re-tt.vis { opacity:1; }
