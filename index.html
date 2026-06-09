@@ -17,24 +17,6 @@
     <div class="date-badge" id="current-date"></div>
   </header>
 
-  <nav class="tab-bar">
-    <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">
-      <span class="tab-icon">📊</span> Dashboard
-    </button>
-    <button class="tab-btn" id="tab-wellness" onclick="switchTab('wellness')">
-      <span class="tab-icon">✨</span> Wellness
-    </button>
-    <button class="tab-btn" id="tab-readiness" onclick="switchTab('readiness')">
-      <span class="tab-icon">⚡</span> Readiness
-    </button>
-    <button class="tab-btn" id="tab-volume" onclick="switchTab('volume')">
-      <span class="tab-icon">🏃</span> Volume
-    </button>
-    <button class="tab-btn" id="tab-load" onclick="switchTab('load')">
-      <span class="tab-icon">📈</span> Load
-    </button>
-  </nav>
-
   <div class="swipe-hint" id="swipe-hint">
     <div class="swipe-dot active"></div>
     <div class="swipe-dot"></div>
@@ -45,19 +27,10 @@
 
   <main class="panels-wrap" id="panels-wrap">
     <div class="panels-slider" id="panels-slider">
-      <!-- Dashboard Panel -->
       <section class="tab-panel" id="panel-dashboard"></section>
-
-      <!-- Wellness Panel -->
       <section class="tab-panel" id="panel-wellness"></section>
-
-      <!-- Readiness Panel -->
       <section class="tab-panel" id="panel-readiness"></section>
-
-      <!-- Volume Panel -->
       <section class="tab-panel" id="panel-volume"></section>
-
-      <!-- Load Panel -->
       <section class="tab-panel" id="panel-load"></section>
     </div>
   </main>
@@ -68,6 +41,49 @@
     <div id="vtt-acts"></div>
   </div>
 
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav" role="navigation" aria-label="Main navigation">
+    <button class="nav-item active" data-tab="dashboard" aria-label="Dashboard">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      <span class="nav-label">Dashboard</span>
+    </button>
+
+    <button class="nav-item" data-tab="wellness" aria-label="Wellness">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <span class="nav-label">Wellness</span>
+    </button>
+
+    <button class="nav-item" data-tab="readiness" aria-label="Readiness">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <span class="nav-label">Readiness</span>
+    </button>
+
+    <button class="nav-item" data-tab="volume" aria-label="Volume">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3h18v18H3z" rx="2"/>
+        <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+      </svg>
+      <span class="nav-label">Volume</span>
+    </button>
+
+    <button class="nav-item" data-tab="load" aria-label="Load">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      <span class="nav-label">Load</span>
+    </button>
+  </nav>
+
   <script type="module">
     import { state, fetchData, switchTab, initSwipe, localDate, scoreRow } from './shared.js';
     import { renderDashboard } from './tab-dashboard.js';
@@ -75,28 +91,45 @@
 
     window.switchTab = switchTab;
 
+    // ── Bottom nav active state + tab switching ──────────────
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        navItems.forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+
+        // Hide any stray tooltips on tab change
+        ['load-tt', 're-tt'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) { el.classList.remove('vis'); el.style.opacity = '0'; }
+        });
+
+        switchTab(item.dataset.tab);
+      });
+    });
+
+    // ── Keep nav in sync when tab changes via swipe ───────────
+    // Call this from shared.js after a swipe completes
+    window.syncNavToTab = function(tabName) {
+      navItems.forEach(n => {
+        n.classList.toggle('active', n.dataset.tab === tabName);
+      });
+    };
+
     async function init() {
-      // Set current date
       const d = new Date();
       document.getElementById('current-date').textContent = d.toLocaleDateString('en-GB', {
         weekday: 'short', day: 'numeric', month: 'short'
       });
 
-      // Initialize swipe gestures
       initSwipe();
 
       try {
-        // Fetch initial data
         state.allRows = await fetchData();
-
-        // Pre-calculate scores for all rows
         state.allRows.forEach(r => {
           r._score = scoreRow(r, state.allRows).composite;
         });
-
-        // Initial render (Dashboard)
         renderDashboard(state.allRows);
-
       } catch (e) {
         console.error('Initialization error:', e);
         const container = document.getElementById('panel-dashboard');
