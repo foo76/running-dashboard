@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GCT Balance</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; margin: 0; padding: 20px; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+    .subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 20px; }
+    .period-btn {
+      background: #1e293b; border: 1px solid #334155; color: #94a3b8;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+      margin-right: 6px; transition: all 0.2s;
+    }
+    .period-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+    .period-btn:hover:not(.active) { border-color: #64748b; color: #e2e8f0; }
+    #chart { margin-top: 20px; }
+    .tooltip {
+      position: absolute; pointer-events: none; background: #1e293b;
+      border: 1px solid #334155; border-radius: 8px; padding: 10px 14px;
+      font-size: 0.78rem; color: #e2e8f0; opacity: 0; transition: opacity 0.15s;
+      line-height: 1.6;
+    }
+    .tooltip strong { color: #60a5fa; }
+  </style>
+</head>
+<body>
+
+<h2>Ground Contact Time Balance</h2>
+<p class="subtitle">Left vs right foot % per run · centred on 50% symmetry</p>
+
+<div id="controls">
+  <button class="period-btn active" data-days="30">30 days</button>
+  <button class="period-btn" data-days="90">3 months</button>
+  <button class="period-btn" data-days="180">6 months</button>
+  <button class="period-btn" data-days="365">12 months</button>
+</div>
+
+<div id="chart"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+  const sb = createClient(
+    'https://krgbagjignvbnrgybdos.supabase.co',
+    'sb_publishable_qNga415U3UwHSNF1DF5RiQ_5MzhIFFq'
+  );
+
+  async function fetchGCT(days) {
+    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const { data, error } = await sb
+      .from('gct_balance_view')
+      .select('run_date, activity_name, distance_m, gct_left_pct')
+      .gte('run_date', since)
+      .order('run_date', { ascending: true });
+    if (error) { console.error(error); return []; }
+    return data;
+  }
+
+  const margin = { top: 20, right: 140, bottom: 40, left: 90 };
+  const barHeight = 18;
+  const maxDeviation = 3;
+
+  async function draw(days) {
+    const raw = await fetchGCT(days);
+    if (!raw.length) {
+      d3.select('#chart').html('<p style="color:#64748b;font-size:0.85rem">No data found for this period.</p>');
+      return;
+    }
+
+    const data = raw.map(d => ({
+      date:    new Date(d.run_date),
+      name:    d.activity_name || 'Run',
+      dist_km: (d.distance_m / 1000).toFixed(1),
+      left:    +d.gct_left_pct,
+      right:   100 - +d.gct_left_pct,
+      dev:     +d.gct_left_pct - 50
+    }));
+
+    const windowSize = 7;
+    const rollAvg = data.map((d, i) => {
+      const slice = data.slice(Math.max(0, i - windowSize + 1), i + 1);
+      return { date: d.date, avg: d3.mean(slice, s => s.dev) };
+    });
+
+    const svgWidth = Math.min(820, window.innerWidth - 40);
+    const innerW = svgWidth - margin.left - margin.right;
+    const innerH = data.length * (barHeight + 5);
+    const height = innerH + margin.top + margin.bottom;
+    const cx = innerW / 2;
+
+    const xScale = d3.scaleLinear()
+      .domain([-maxDeviation, maxDeviation])
+      .range([0, innerW])
+      .clamp(true);
+
+    const yScale = d3.scaleBand()
+      .domain(data.map(d => d.date.toISOString()))
+      .range([0, innerH])
+      .padding(0.15);
+
+    d3.select('#chart').selectAll('*').remove();
+    const tooltip = d3.select('#tooltip');
+
+    const svg = d3.select('#chart')
+      .append('svg')
+      .attr('width', svgWidth)
+      .attr('height', height)
+      .style('overflow', 'visible');
+
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Symmetry band ±0.5%
+    g.append('rect')
+      .attr('x', xScale(-0.5))
+      .attr('width', xScale(0.5) - xScale(-0.5))
+      .attr('height', innerH)
+      .attr('fill', '#1e293b')
+      .attr('opacity', 0.6);
+
+    // Bars
+    g.selectAll('.bar')
+      .data(data)
+      .join('rect')
+        .attr('class', 'bar')
+        .attr('x', d => d.dev < 0 ? xScale(d.dev) : xScale(0))
+        .attr('y', d => yScale(d.date.toISOString()))
+        .attr('width', d => Math.abs(xScale(d.dev) - xScale(0)))
+        .attr('height', yScale.bandwidth())
+        .attr('rx', 3)
+        .attr('fill', d => d.dev < 0 ? '#f97316' : '#3b82f6')
+        .attr('opacity', 0.85)
+      .on('mousemove', (event, d) => {
+        tooltip
+          .style('opacity', 1)
+          .style('left', `${event.pageX + 14}px`)
+          .style('top', `${event.pageY - 40}px`)
+          .html(`
+            <strong>${d.name}</strong><br>
+            📅 ${d.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}<br>
+            🏃 ${d.dist_km} km<br>
+            ⬅ Left: <strong>${d.left.toFixed(1)}%</strong> &nbsp;➡ Right: <strong>${d.right.toFixed(1)}%</strong><br>
+            Deviation: <strong>${d.dev > 0 ? '+' : ''}${d.dev.toFixed(2)}%</strong>
+          `);
+      })
+      .on('mouseleave', () => tooltip.style('opacity', 0));
+
+    // Rolling average line
+    const lineGen = d3.line()
+      .x(d => xScale(d.avg))
+      .y(d => yScale(d.date.toISOString()) + yScale.bandwidth() / 2)
+      .curve(d3.curveMonotoneY)
+      .defined(d => d.avg != null);
+
+    g.append('path')
+      .datum(rollAvg)
+      .attr('d', lineGen)
+      .attr('fill', 'none')
+      .attr('stroke', '#f8fafc')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '4 3')
+      .attr('opacity', 0.5);
+
+    // Centre line
+    g.append('line')
+      .attr('x1', xScale(0)).attr('x2', xScale(0))
+      .attr('y1', 0).attr('y2', innerH)
+      .attr('stroke', '#94a3b8')
+      .attr('stroke-width', 1.5);
+
+    // Y axis
+    g.append('g')
+      .call(d3.axisLeft(yScale)
+        .tickFormat(iso => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })))
+      .call(g => g.select('.domain').remove())
+      .call(g => g.selectAll('line').attr('stroke', '#334155'))
+      .call(g => g.selectAll('text').attr('fill', '#94a3b8').style('font-size', '0.72rem'));
+
+    // X axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(xScale)
+        .tickValues([-2, -1, -0.5, 0, 0.5, 1, 2])
+        .tickFormat(d => `${(50 + d).toFixed(1)}%`))
+      .call(g => g.select('.domain').attr('stroke', '#334155'))
+      .call(g => g.selectAll('line').attr('stroke', '#334155'))
+      .call(g => g.selectAll('text').attr('fill', '#94a3b8').style('font-size', '0.72rem'));
+
+    // Legend
+    const legend = g.append('g').attr('transform', `translate(${innerW + 16}, 10)`);
+    [['#3b82f6', 'Left dominant'], ['#f97316', 'Right dominant'], ['#f8fafc', '7-day avg']].forEach(([c, label], i) => {
+      const row = legend.append('g').attr('transform', `translate(0,${i * 22})`);
+      row.append('rect').attr('width', 12).attr('height', 12).attr('rx', 2).attr('fill', c).attr('opacity', i === 2 ? 0.5 : 0.85);
+      row.append('text').attr('x', 16).attr('y', 10).attr('fill', '#94a3b8').style('font-size', '0.72rem').text(label);
+    });
+
+    // Trend annotation
+    const trend = data[data.length - 1].dev - data[0].dev;
+    const trendLabel = Math.abs(trend) < 0.1 ? 'Stable'
+      : trend > 0 ? `↑ Shifting left (+${trend.toFixed(2)}%)`
+      : `↓ Shifting right (${trend.toFixed(2)}%)`;
+
+    svg.append('text')
+      .attr('x', margin.left)
+      .attr('y', height - 4)
+      .attr('fill', '#64748b')
+      .style('font-size', '0.72rem')
+      .text(`Trend: ${trendLabel}`);
+  }
+
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draw(+btn.dataset.days);
+    });
+  });
+
+  draw(30);
+</script>
+</body>
+</html>
