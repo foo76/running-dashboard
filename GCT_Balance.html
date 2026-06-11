@@ -59,8 +59,7 @@
     return data;
   }
 
-  // ── Linear regression helper ──────────────────────────────────────────────
-  // Returns { slope, intercept } where x is run index (0,1,2...) and y is deviation
+  // Linear regression over run index vs deviation from 50%
   function linearRegression(data) {
     const n = data.length;
     const xMean = (n - 1) / 2;
@@ -72,7 +71,7 @@
     return { slope, intercept };
   }
 
-  const margin = { top: 20, right: 160, bottom: 50, left: 90 };
+  const margin = { top: 20, right: 165, bottom: 50, left: 90 };
   const barHeight = 18;
   const maxDeviation = 3;
 
@@ -92,19 +91,19 @@
       dev:     +d.gct_left_pct - 50
     }));
 
-    // ── Regression ────────────────────────────────────────────────────────
+    // Regression
     const { slope, intercept } = linearRegression(data);
-    const trendStart = intercept;                          // y at index 0
-    const trendEnd   = slope * (data.length - 1) + intercept; // y at last index
+    const trendStart = intercept;
+    const trendEnd   = slope * (data.length - 1) + intercept;
+    const totalDrift = trendEnd - trendStart;
 
-    // ── Rolling 7-day average ─────────────────────────────────────────────
-    const windowSize = 7;
+    // 7-day rolling average
     const rollAvg = data.map((d, i) => {
-      const slice = data.slice(Math.max(0, i - windowSize + 1), i + 1);
+      const slice = data.slice(Math.max(0, i - 6), i + 1);
       return { date: d.date, avg: d3.mean(slice, s => s.dev) };
     });
 
-    // ── Layout ────────────────────────────────────────────────────────────
+    // Layout
     const svgWidth = Math.min(820, window.innerWidth - 40);
     const innerW   = svgWidth - margin.left - margin.right;
     const innerH   = data.length * (barHeight + 5);
@@ -132,15 +131,15 @@
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // ── Symmetry band ±0.5% ───────────────────────────────────────────────
+    // Symmetry band ±0.5%
     g.append('rect')
       .attr('x', xScale(-0.5))
       .attr('width', xScale(0.5) - xScale(-0.5))
       .attr('height', innerH)
       .attr('fill', '#1e293b')
-      .attr('opacity', 0.6);
+      .attr('opacity', 0.7);
 
-    // ── Bars ──────────────────────────────────────────────────────────────
+    // Bars
     g.selectAll('.bar')
       .data(data)
       .join('rect')
@@ -156,7 +155,7 @@
         tooltip
           .style('opacity', 1)
           .style('left', `${event.pageX + 14}px`)
-          .style('top', `${event.pageY - 40}px`)
+          .style('top',  `${event.pageY - 40}px`)
           .html(`
             <strong>${d.name}</strong><br>
             📅 ${d.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}<br>
@@ -167,7 +166,7 @@
       })
       .on('mouseleave', () => tooltip.style('opacity', 0));
 
-    // ── 7-day rolling average line ────────────────────────────────────────
+    // 7-day rolling average line
     const lineGen = d3.line()
       .x(d => xScale(d.avg))
       .y(d => yScale(d.date.toISOString()) + yScale.bandwidth() / 2)
@@ -181,40 +180,38 @@
       .attr('stroke', '#94a3b8')
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '4 3')
-      .attr('opacity', 0.5);
+      .attr('opacity', 0.6);
 
-    // ── LINEAR REGRESSION TRENDLINE ───────────────────────────────────────
-    // Map regression y-values (deviations) back to pixel positions
-    const firstBandY = yScale(data[0].date.toISOString()) + yScale.bandwidth() / 2;
-    const lastBandY  = yScale(data[data.length - 1].date.toISOString()) + yScale.bandwidth() / 2;
+    // Linear regression trendline
+    const firstMidY = yScale(data[0].date.toISOString()) + yScale.bandwidth() / 2;
+    const lastMidY  = yScale(data[data.length - 1].date.toISOString()) + yScale.bandwidth() / 2;
 
     g.append('line')
       .attr('x1', xScale(trendStart))
-      .attr('y1', firstBandY)
+      .attr('y1', firstMidY)
       .attr('x2', xScale(trendEnd))
-      .attr('y2', lastBandY)
-      .attr('stroke', '#facc15')        // yellow — distinct from bars and rolling avg
+      .attr('y2', lastMidY)
+      .attr('stroke', '#facc15')
       .attr('stroke-width', 2)
       .attr('stroke-linecap', 'round');
 
-    // Arrowhead at the end of the trendline
-    const arrowSize = 5;
+    // Arrowhead on trendline
     const dx = xScale(trendEnd) - xScale(trendStart);
-    const dy = lastBandY - firstBandY;
-    const angle = Math.atan2(dy, dx);
+    const dy = lastMidY - firstMidY;
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
     g.append('polygon')
-      .attr('points', `0,${-arrowSize} ${arrowSize * 1.8},0 0,${arrowSize}`)
+      .attr('points', '0,-4 8,0 0,4')
       .attr('fill', '#facc15')
-      .attr('transform', `translate(${xScale(trendEnd)},${lastBandY}) rotate(${angle * 180 / Math.PI})`);
+      .attr('transform', `translate(${xScale(trendEnd)},${lastMidY}) rotate(${angle})`);
 
-    // ── Centre line ────────────────────────────────────────────────────────
+    // Centre line at 50%
     g.append('line')
       .attr('x1', xScale(0)).attr('x2', xScale(0))
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', '#94a3b8')
+      .attr('stroke', '#cbd5e1')
       .attr('stroke-width', 1.5);
 
-    // ── Y axis ─────────────────────────────────────────────────────────────
+    // Y axis (dates)
     g.append('g')
       .call(d3.axisLeft(yScale)
         .tickFormat(iso => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })))
@@ -222,7 +219,7 @@
       .call(g => g.selectAll('line').attr('stroke', '#334155'))
       .call(g => g.selectAll('text').attr('fill', '#94a3b8').style('font-size', '0.72rem'));
 
-    // ── X axis ─────────────────────────────────────────────────────────────
+    // X axis (% labels)
     g.append('g')
       .attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(xScale)
@@ -232,23 +229,53 @@
       .call(g => g.selectAll('line').attr('stroke', '#334155'))
       .call(g => g.selectAll('text').attr('fill', '#94a3b8').style('font-size', '0.72rem'));
 
-    // ── Legend ─────────────────────────────────────────────────────────────
+    // Legend
     const legend = g.append('g').attr('transform', `translate(${innerW + 16}, 10)`);
-    [
-      ['#3b82f6', 'rect',  'Left dominant'],
-      ['#f97316', 'rect',  'Right dominant'],
-      ['#94a3b8', 'dash',  '7-day avg'],
-      ['#facc15', 'line',  'Trend (regression)'],
-    ].forEach(([c, type, label], i) => {
+    const legendItems = [
+      { color: '#3b82f6', type: 'rect',  label: 'Left dominant' },
+      { color: '#f97316', type: 'rect',  label: 'Right dominant' },
+      { color: '#94a3b8', type: 'dash',  label: '7-day avg' },
+      { color: '#facc15', type: 'line',  label: 'Trend line' },
+    ];
+    legendItems.forEach(({ color, type, label }, i) => {
       const row = legend.append('g').attr('transform', `translate(0,${i * 22})`);
       if (type === 'rect') {
-        row.append('rect').attr('width', 12).attr('height', 12).attr('rx', 2).attr('fill', c).attr('opacity', 0.85);
+        row.append('rect').attr('width', 12).attr('height', 12).attr('rx', 2)
+          .attr('fill', color).attr('opacity', 0.85);
       } else if (type === 'dash') {
         row.append('line').attr('x1', 0).attr('y1', 6).attr('x2', 12).attr('y2', 6)
-          .attr('stroke', c).attr('stroke-width', 1.5).attr('stroke-dasharray', '3 2').attr('opacity', 0.6);
+          .attr('stroke', color).attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '4 3').attr('opacity', 0.6);
       } else {
         row.append('line').attr('x1', 0).attr('y1', 6).attr('x2', 12).attr('y2', 6)
-          .attr('stroke', c).attr('stroke-width', 2);
+          .attr('stroke', color).attr('stroke-width', 2);
       }
-      row.append('text').attr('x', 16).attr('y', 10).attr('fill', '#94a3b8').style('font-size', '0.72rem').text(label);
-    
+      row.append('text').attr('x', 16).attr('y', 10)
+        .attr('fill', '#94a3b8').style('font-size', '0.72rem').text(label);
+    });
+
+    // Trend summary annotation below chart
+    const direction = Math.abs(totalDrift) < 0.05
+      ? 'Stable — no meaningful shift'
+      : totalDrift > 0
+        ? `Shifting left  (+${totalDrift.toFixed(2)}% over period)`
+        : `Shifting right  (${totalDrift.toFixed(2)}% over period)`;
+
+    const trendColor = Math.abs(totalDrift) < 0.05 ? '#64748b'
+      : totalDrift > 0 ? '#3b82f6' : '#f97316';
+
+    svg.append('text')
+      .attr('x', margin.left)
+      .attr('y', height - 8)
+      .attr('fill', trendColor)
+      .style('font-size', '0.75rem')
+      .style('font-weight', '500')
+      .text(`Trend: ${direction}`);
+  }
+
+  // Period toggle
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draw(+btn.dataset.days);
