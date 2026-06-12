@@ -720,3 +720,137 @@ body{
   font-weight: 700;
   letter-spacing: .02em;
 }
+/* ── Dashboard root ──────────────────────────────────────────────────────── */
+.db-root {
+  position: relative;
+  padding: 0 0 8px;
+}
+
+/* ── Ambient glow layer ──────────────────────────────────────────────────── */
+.db-glow {
+  position: absolute;
+  inset: -20px -20px auto -20px;
+  height: 180px;
+  pointer-events: none;
+  z-index: 0;
+  transition: background 800ms ease;
+}
+
+/* ── Eyebrow label ───────────────────────────────────────────────────────── */
+.db-eyebrow {
+  position: relative;
+  z-index: 1;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--label);
+  margin: 0 0 8px 2px;
+  opacity: 0.6;
+}
+
+/* ── Liquid Glass card ───────────────────────────────────────────────────── */
+.db-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  overflow: hidden;
+  /* inner highlight along top edge */
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    0 8px 32px rgba(0,0,0,0.28),
+    0 2px 8px rgba(0,0,0,0.18);
+  min-height: 240px;
+}
+
+/* ── Skeleton shimmer ────────────────────────────────────────────────────── */
+.db-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  transition: opacity 300ms ease;
+  z-index: 2;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.db-skeleton .sk-arc,
+.db-skeleton .sk-value,
+.db-skeleton .sk-label {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+.db-skeleton .sk-arc   { width: 80%; height: 90px; border-radius: 80px 80px 0 0; }
+.db-skeleton .sk-value { width: 40%; height: 28px; margin-top: 8px; }
+.db-skeleton .sk-label { width: 55%; height: 14px; }
+
+/* ── Period badge tap flash ──────────────────────────────────────────────── */
+@keyframes badgePulse {
+  0%   { transform: scale(1);    opacity: 1; }
+  40%  { transform: scale(1.15); opacity: 0.8; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+.badge-tap {
+  animation: badgePulse 300ms ease forwards;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.db-footer {
+  position: relative;
+  z-index: 1;
+  font-size: .6rem;
+  color: var(--label);
+  opacity: 0.4;
+  text-align: center;
+  margin: 6px 0 0;
+  letter-spacing: .04em;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.db-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--label);
+  font-size: .78rem;
+  opacity: 0.6;
+}
+
+.db-empty-icon { font-size: 2rem; }
+
+/* ── Error state ─────────────────────────────────────────────────────────── */
+.db-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.db-error-icon  { font-size: 1.6rem; margin-bottom: 4px; }
+.db-error-title { font-size: .8rem; font-weight: 700; color: var(--low); }
+.db-error-sub   { font-size: .68rem; color: var(--label); opacity: 0.6; }
