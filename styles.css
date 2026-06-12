@@ -680,3 +680,24 @@ body{
   font-variant-numeric:tabular-nums;
   transition:color 300ms ease;
 }
+
+/* Period cycle badge on dial */
+.gct-period-badge {
+  display: inline-block;
+  margin: 6px auto 0;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--label);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  text-align: center;
+  transition: color 200ms ease;
+}
+.gct-dial:active .gct-period-badge {
+  color: var(--good);
+  border-color: var(--good);
+}
