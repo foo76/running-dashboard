@@ -578,3 +578,105 @@ body{
   backdrop-filter:blur(6px);
 }
 .re-tt.vis { opacity:1; }
+
+/* ══════════════════════════════════════════════
+   DASHBOARD — GCT Balance
+══════════════════════════════════════════════ */
+.dash-section-title{
+  font-size:.6rem;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--label);
+  margin-bottom:4px;
+}
+
+.gct-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:18px 16px 14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+
+.gct-dial-wrap{
+  width:100%;
+}
+
+.gct-dial{
+  width:100%;
+  max-width:260px;
+  margin:0 auto;
+}
+
+.gct-dial-svg{
+  display:block;
+  width:100%;
+  overflow:visible;
+}
+
+.gct-side-label{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.08em;
+  font-family:'Satoshi','Inter',system-ui,sans-serif;
+}
+
+.gct-side-pct{
+  font-size:10px;
+  font-weight:700;
+  font-family:'Satoshi','Inter',system-ui,sans-serif;
+  opacity:.85;
+}
+
+.gct-left-label{ fill:#3b82f6; }
+.gct-right-label{ fill:#f97316; }
+
+.gct-main-value{
+  font-size:22px;
+  font-weight:900;
+  font-family:'Satoshi','Inter',system-ui,sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+
+.gct-dial-meta{
+  margin-top:-2px;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.gct-dominance{
+  font-size:.72rem;
+  font-weight:800;
+  letter-spacing:.03em;
+}
+
+.gct-split{
+  font-size:.62rem;
+  color:var(--label);
+  font-weight:500;
+}
+
+.gct-change-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:.72rem;
+}
+
+.gct-change-label{
+  color:var(--label);
+  font-weight:600;
+  letter-spacing:.04em;
+}
+
+.gct-change-val{
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  transition:color 300ms ease;
+}
