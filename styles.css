@@ -701,3 +701,22 @@ body{
   color: var(--good);
   border-color: var(--good);
 }
+.gct-change-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.gct-change-period {
+  font-size: .7rem;
+  color: var(--label);
+  font-weight: 500;
+}
+
+.gct-change-val {
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
