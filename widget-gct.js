@@ -28,89 +28,57 @@ export function renderGctDial(containerId, avg30, change, days, onCycleDay) {
   // ── Change / trend values ──────────────────────────────────────────────
   const changeAbs  = Math.abs(change);
   const isStable   = changeAbs < 0.05;
-  const goesLeft   = change > 0;   // positive = balance moving toward left foot
+  const goesLeft   = change > 0;
   const changeSign = change >= 0 ? '+' : '';
 
-  const trendColour = '#8898BB';   // --text2 light grey
+  const TREND_COLOUR = '#8898BB';
 
   // ── Hub geometry ───────────────────────────────────────────────────────
   const HUB_X    = 120;
-  const HUB_Y    = 128;
+  const HUB_Y    = 135;   // shifted down slightly to give room for top badge
   const ARROW_Y  = HUB_Y;
-  const HALF_LEN = 44;   // half-length of single arrow from hub
-  const STAB_LEN = 28;   // half-length of double-headed stable arrow
+  const HALF_LEN = 44;
+  const STAB_LEN = 28;
 
-  // ── Trend arrow SVG ───────────────────────────────────────────────────
-  // Arrow starts FROM the hub (no tail beyond hub on the blunt side)
+  // ── Trend arrow SVG ────────────────────────────────────────────────────
   let trendArrowSVG = '';
-  let trendLabelSVG = '';
-
-  // Change label content
-  const changeArrowChar = isStable ? '↔' : goesLeft ? '←' : '→';
-  const changeDirText   = isStable ? 'Stable' : goesLeft ? 'Left' : 'Right';
-  const changeLabel     = `${changeArrowChar} ${changeDirText} ${changeSign}${changeAbs.toFixed(2)}%`;
-  const labelColour     = isStable ? '#5A6A88' : goesLeft ? '#3b82f6' : '#f97316';
 
   if (isStable) {
-    // Double-headed arrow ↔ centred on hub
     const x1 = HUB_X - STAB_LEN;
     const x2 = HUB_X + STAB_LEN;
     trendArrowSVG = `
       <line x1="${x1}" y1="${ARROW_Y}" x2="${x2}" y2="${ARROW_Y}"
-        stroke="${trendColour}" stroke-width="2.5" stroke-linecap="round"/>
+        stroke="${TREND_COLOUR}" stroke-width="2.5" stroke-linecap="round"/>
       <polygon points="${x1},${ARROW_Y} ${x1+10},${ARROW_Y-5} ${x1+10},${ARROW_Y+5}"
-        fill="${trendColour}"/>
+        fill="${TREND_COLOUR}"/>
       <polygon points="${x2},${ARROW_Y} ${x2-10},${ARROW_Y-5} ${x2-10},${ARROW_Y+5}"
-        fill="${trendColour}"/>
-    `;
-    // Centred label below arrow
-    trendLabelSVG = `
-      <text x="${HUB_X}" y="${ARROW_Y + 18}" text-anchor="middle"
-        font-size="9" font-weight="700" fill="${labelColour}"
-        font-family="Satoshi,Inter,system-ui,sans-serif"
-        letter-spacing="0.03em">${changeLabel}</text>
+        fill="${TREND_COLOUR}"/>
     `;
   } else if (goesLeft) {
-    // Arrow points LEFT — starts at hub, tip goes left
     const tipX = HUB_X - HALF_LEN;
     trendArrowSVG = `
       <line x1="${HUB_X}" y1="${ARROW_Y}" x2="${tipX + 10}" y2="${ARROW_Y}"
-        stroke="${trendColour}" stroke-width="2.5" stroke-linecap="round"/>
+        stroke="${TREND_COLOUR}" stroke-width="2.5" stroke-linecap="round"/>
       <polygon points="${tipX},${ARROW_Y} ${tipX+10},${ARROW_Y-5} ${tipX+10},${ARROW_Y+5}"
-        fill="${trendColour}"/>
-    `;
-    // Label to the LEFT of hub, right-aligned to just before tip
-    trendLabelSVG = `
-      <text x="${tipX - 4}" y="${ARROW_Y - 8}" text-anchor="end"
-        font-size="9" font-weight="700" fill="${labelColour}"
-        font-family="Satoshi,Inter,system-ui,sans-serif"
-        letter-spacing="0.03em">${changeLabel}</text>
+        fill="${TREND_COLOUR}"/>
     `;
   } else {
-    // Arrow points RIGHT — starts at hub, tip goes right
     const tipX = HUB_X + HALF_LEN;
     trendArrowSVG = `
       <line x1="${HUB_X}" y1="${ARROW_Y}" x2="${tipX - 10}" y2="${ARROW_Y}"
-        stroke="${trendColour}" stroke-width="2.5" stroke-linecap="round"/>
+        stroke="${TREND_COLOUR}" stroke-width="2.5" stroke-linecap="round"/>
       <polygon points="${tipX},${ARROW_Y} ${tipX-10},${ARROW_Y-5} ${tipX-10},${ARROW_Y+5}"
-        fill="${trendColour}"/>
-    `;
-    // Label to the RIGHT of hub, left-aligned just after tip
-    trendLabelSVG = `
-      <text x="${tipX + 4}" y="${ARROW_Y - 8}" text-anchor="start"
-        font-size="9" font-weight="700" fill="${labelColour}"
-        font-family="Satoshi,Inter,system-ui,sans-serif"
-        letter-spacing="0.03em">${changeLabel}</text>
+        fill="${TREND_COLOUR}"/>
     `;
   }
 
-  // ── "Xd AVG" badge — sits inside SVG just above the hub ───────────────
-  // Positioned at y=112, centred on hub x, between the deviation % and hub
+  // ── "Xd AVG" badge — dead centre top of SVG ───────────────────────────
+  const badgeW  = 52;
   const badgeSVG = `
-    <rect x="${HUB_X - 22}" y="113" width="44" height="14"
-      rx="7" fill="#0C1220" stroke="#1A2640" stroke-width="1"/>
-    <text x="${HUB_X}" y="123" text-anchor="middle"
-      font-size="8" font-weight="700" fill="#5A6A88"
+    <rect x="${HUB_X - badgeW/2}" y="6" width="${badgeW}" height="16"
+      rx="8" fill="#0C1220" stroke="#1A2640" stroke-width="1"/>
+    <text x="${HUB_X}" y="17.5" text-anchor="middle"
+      font-size="8.5" font-weight="700" fill="#5A6A88"
       font-family="Satoshi,Inter,system-ui,sans-serif"
       letter-spacing="0.08em">${days}D AVG</text>
   `;
@@ -119,7 +87,7 @@ export function renderGctDial(containerId, avg30, change, days, onCycleDay) {
     <div class="gct-dial" id="gct-dial-inner"
       style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;">
 
-      <svg viewBox="0 0 240 162" width="100%" class="gct-dial-svg">
+      <svg viewBox="0 0 240 155" width="100%" class="gct-dial-svg">
         <defs>
           <linearGradient id="gct-arc-grad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%"   stop-color="#3b82f6" stop-opacity="0.95"/>
@@ -129,6 +97,9 @@ export function renderGctDial(containerId, avg30, change, days, onCycleDay) {
           </linearGradient>
         </defs>
 
+        <!-- "Xd AVG" badge — top centre -->
+        ${badgeSVG}
+
         <!-- Arc track -->
         <path d="M 24 128 A 96 96 0 0 1 216 128"
           fill="none" stroke="#162033" stroke-width="18" stroke-linecap="round"/>
@@ -137,37 +108,31 @@ export function renderGctDial(containerId, avg30, change, days, onCycleDay) {
           stroke-linecap="round" opacity="0.75"/>
 
         <!-- Centre dashed guide -->
-        <line x1="120" y1="34" x2="120" y2="108"
+        <line x1="120" y1="28" x2="120" y2="114"
           stroke="#2E3D58" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.8"/>
 
         <!-- LEFT / RIGHT labels -->
-        <text x="10" y="22" text-anchor="start"
+        <text x="10" y="38" text-anchor="start"
           class="gct-side-label gct-left-label">LEFT</text>
-        <text x="230" y="22" text-anchor="end"
+        <text x="230" y="38" text-anchor="end"
           class="gct-side-label gct-right-label">RIGHT</text>
 
         <!-- Main needle (behind hub) -->
         <g transform="rotate(${needleAngle}, ${HUB_X}, ${HUB_Y})">
-          <line x1="${HUB_X}" y1="${HUB_Y}" x2="${HUB_X}" y2="46"
+          <line x1="${HUB_X}" y1="${HUB_Y}" x2="${HUB_X}" y2="50"
             stroke="${needleColour}" stroke-width="3" stroke-linecap="round"/>
-          <polygon points="${HUB_X},34 ${HUB_X-6},52 ${HUB_X+6},52"
+          <polygon points="${HUB_X},38 ${HUB_X-6},56 ${HUB_X+6},56"
             fill="${needleColour}"/>
         </g>
 
         <!-- Deviation % value -->
-        <text x="${HUB_X}" y="96" text-anchor="middle"
+        <text x="${HUB_X}" y="108" text-anchor="middle"
           class="gct-main-value" fill="${needleColour}">
           ${Math.abs(dev).toFixed(1)}%
         </text>
 
-        <!-- "Xd AVG" badge just above hub -->
-        ${badgeSVG}
-
         <!-- Trend arrow (behind hub) -->
         ${trendArrowSVG}
-
-        <!-- Trend label (mirrored to arrow direction) -->
-        ${trendLabelSVG}
 
         <!-- Hub on top of everything -->
         <circle cx="${HUB_X}" cy="${HUB_Y}" r="7" fill="${needleColour}"/>
@@ -175,12 +140,22 @@ export function renderGctDial(containerId, avg30, change, days, onCycleDay) {
 
       </svg>
 
-      <!-- Dominance + split — keep below SVG, remove old change row -->
+      <!-- Below SVG: dominance, split, change label -->
       <div class="gct-dial-meta">
         <div class="gct-dominance" style="color:${needleColour}">
           ${Math.abs(dev) < 0.1 ? 'Balanced' : dev < 0 ? 'Right dominant' : 'Left dominant'}
         </div>
         <div class="gct-split">Left ${leftPct}% · Right ${rightPct}%</div>
+        <div class="gct-change-row">
+          <span class="gct-change-period">${days}d Change</span>
+          <span class="gct-change-val" style="color:${
+            isStable ? 'var(--label)' : goesLeft ? '#3b82f6' : '#f97316'
+          }">
+            ${isStable ? '↔' : goesLeft ? '←' : '→'}
+            ${isStable ? 'Stable' : goesLeft ? 'Left' : 'Right'}
+            ${changeSign}${changeAbs.toFixed(2)}%
+          </span>
+        </div>
       </div>
     </div>
   `;
