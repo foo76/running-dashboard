@@ -1,32 +1,30 @@
 import { SB_URL, SB_KEY, localDate } from './shared.js';
-import { renderGctDial } from './widget-gct.js';
+import { renderGctDial }              from './widget-gct.js';
+import { fetchNextRace, renderRaceCountdown } from './widget-race-countdown.js';
 
-// ─── iOS 26 Liquid Glass card shell ───────────────────────────────────────────
+// ─── Dashboard HTML shell ──────────────────────────────────────────────────────
 export const dashboardHTML = `
   <div class="db-root">
 
-    <!-- Ambient background glow — colour shifts with dominance -->
+    <!-- Ambient background glow -->
     <div class="db-glow" id="db-glow"></div>
 
-    <!-- Section eyebrow -->
+    <!-- ── Race countdown (above balance) ── -->
+    <div id="race-countdown-mount"></div>
+
+    <!-- ── GCT Balance section ── -->
     <p class="db-eyebrow">Balance Analysis</p>
 
-    <!-- Liquid Glass card -->
     <div class="db-card" id="db-card">
-
-      <!-- Card inner: skeleton shown until data loads -->
       <div class="db-skeleton" id="db-skeleton">
         <div class="sk-arc"></div>
         <div class="sk-value"></div>
         <div class="sk-label"></div>
       </div>
-
-      <!-- Dial mount — hidden until data ready -->
-      <div class="gct-dial-wrap" id="gct-dial-wrap" style="opacity:0;transition:opacity 400ms ease;"></div>
-
+      <div class="gct-dial-wrap" id="gct-dial-wrap"
+        style="opacity:0;transition:opacity 400ms ease;"></div>
     </div>
 
-    <!-- Footer row: last updated -->
     <p class="db-footer" id="db-footer"></p>
 
   </div>
@@ -36,7 +34,7 @@ export const dashboardHTML = `
 const CYCLES = [30, 60, 90];
 let gctDayIndex = 0;
 
-// ─── Data fetch ────────────────────────────────────────────────────────────────
+// ─── GCT fetch ────────────────────────────────────────────────────────────────
 async function fetchGCT(days) {
   const since = localDate(days);
   const url = `${SB_URL}/rest/v1/gct_balance_view?select=run_date,gct_left_pct` +
@@ -53,7 +51,7 @@ function avg(arr) {
   return arr.reduce((s, v) => s + v, 0) / arr.length;
 }
 
-// ─── Ambient glow colour tracks dominance ─────────────────────────────────────
+// ─── Ambient glow ─────────────────────────────────────────────────────────────
 function setGlow(dev) {
   const glow = document.getElementById('db-glow');
   if (!glow) return;
@@ -65,7 +63,7 @@ function setGlow(dev) {
     `radial-gradient(ellipse 70% 40% at 50% 0%, rgba(${col},0.18) 0%, transparent 70%)`;
 }
 
-// ─── Skeleton hide ─────────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 function hideSkeleton() {
   const sk   = document.getElementById('db-skeleton');
   const wrap = document.getElementById('gct-dial-wrap');
@@ -73,19 +71,18 @@ function hideSkeleton() {
   if (wrap) { setTimeout(() => { wrap.style.opacity = '1'; }, 120); }
 }
 
-// ─── Footer timestamp ──────────────────────────────────────────────────────────
+// ─── Footer ───────────────────────────────────────────────────────────────────
 function setFooter(rows) {
   const el = document.getElementById('db-footer');
   if (!el || !rows.length) return;
   const last = rows[rows.length - 1].run_date;
   if (!last) return;
-  const d = new Date(last);
-  el.textContent = `Last run  ${d.toLocaleDateString('en-GB', {
+  el.textContent = `Last run  ${new Date(last).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric'
   })}`;
 }
 
-// ─── Period badge tap feedback ─────────────────────────────────────────────────
+// ─── Badge tap pulse ──────────────────────────────────────────────────────────
 function flashBadge() {
   const badge = document.getElementById('gct-period-badge');
   if (!badge) return;
@@ -93,7 +90,7 @@ function flashBadge() {
   setTimeout(() => badge.classList.remove('badge-tap'), 300);
 }
 
-// ─── Main draw ─────────────────────────────────────────────────────────────────
+// ─── GCT draw ─────────────────────────────────────────────────────────────────
 async function drawGct(days) {
   const wrap = document.getElementById('gct-dial-wrap');
   const rows = await fetchGCT(days);
@@ -116,13 +113,9 @@ async function drawGct(days) {
   const split  = Math.ceil(vals.length / 2);
   const change = avg(vals.slice(split)) - avg(vals.slice(0, split));
 
-  // Update ambient glow to match current dominance
   setGlow(dev);
-
-  // Update footer
   setFooter(rows);
 
-  // Render the dial — widget owns everything inside the card
   renderGctDial('gct-dial-wrap', avg30, change, days, () => {
     flashBadge();
     gctDayIndex = (gctDayIndex + 1) % CYCLES.length;
@@ -132,7 +125,7 @@ async function drawGct(days) {
   hideSkeleton();
 }
 
-// ─── Entry point ───────────────────────────────────────────────────────────────
+// ─── Entry point ──────────────────────────────────────────────────────────────
 export async function renderDashboard() {
   const container = document.getElementById('panel-dashboard');
   if (!container) return;
@@ -140,19 +133,26 @@ export async function renderDashboard() {
   container.innerHTML = dashboardHTML;
   gctDayIndex = 0;
 
-  try {
-    await drawGct(CYCLES[gctDayIndex]);
-  } catch (e) {
-    const wrap = document.getElementById('gct-dial-wrap');
-    document.getElementById('db-skeleton')?.remove();
-    if (wrap) {
-      wrap.style.opacity = '1';
-      wrap.innerHTML = `
-        <div class="db-error">
-          <span class="db-error-icon">󠀠</span>
-          <span class="db-error-title">Unable to load</span>
-          <span class="db-error-sub">${e.message}</span>
-        </div>`;
-    }
-  }
+  // Load both widgets in parallel
+  await Promise.allSettled([
+    // Race countdown
+    fetchNextRace()
+      .then(race => renderRaceCountdown('race-countdown-mount', race))
+      .catch(() => renderRaceCountdown('race-countdown-mount', null)),
+
+    // GCT dial
+    drawGct(CYCLES[gctDayIndex]).catch(e => {
+      const wrap = document.getElementById('gct-dial-wrap');
+      document.getElementById('db-skeleton')?.remove();
+      if (wrap) {
+        wrap.style.opacity = '1';
+        wrap.innerHTML = `
+          <div class="db-error">
+            <span class="db-error-icon">󠀠</span>
+            <span class="db-error-title">Unable to load</span>
+            <span class="db-error-sub">${e.message}</span>
+          </div>`;
+      }
+    })
+  ]);
 }
