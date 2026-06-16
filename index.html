@@ -91,9 +91,7 @@
     // ── Wire up bottom nav ──────────────────────────────────
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
-      item.addEventListener('click', () => {
-        switchTab(item.dataset.tab);
-      });
+      item.addEventListener('click', () => switchTab(item.dataset.tab));
     });
 
     // ── Expose syncNavToTab globally so shared.js can call it ──
@@ -102,28 +100,26 @@
     };
 
     async function init() {
-      // Set current date
       const d = new Date();
       document.getElementById('current-date').textContent = d.toLocaleDateString('en-GB', {
         weekday: 'short', day: 'numeric', month: 'short'
       });
 
-      // Initialize swipe gestures
       initSwipe();
 
+      // Render dashboard immediately (no allRows needed — it fetches its own data)
+      // Mark as rendered so switchTab doesn't re-render it
+      state.dashboardRendered = true;
+      renderDashboard();
+
+      // Fetch wellness data in background for other tabs
       try {
         state.allRows = await fetchData();
-
         state.allRows.forEach(r => {
           r._score = scoreRow(r, state.allRows).composite;
         });
-
-        renderDashboard(state.allRows);
-
       } catch (e) {
-        console.error('Initialization error:', e);
-        const container = document.getElementById('panel-dashboard');
-        container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;padding:24px;text-align:center"><span style="font-size:1.8rem">⚠️</span><p style="color:var(--low);font-size:.8rem">' + e.message + '</p></div>';
+        console.error('Wellness data fetch error:', e);
       }
     }
 
