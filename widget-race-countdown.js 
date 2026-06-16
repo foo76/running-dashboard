@@ -1,0 +1,124 @@
+/**
+ * widget-race-countdown.js
+ * Renders a countdown card to the next upcoming race.
+ * Fetches from the races table — next future race with no finish_time_s.
+ * distance_m stored in metres, displayed in km.
+ * Tapping the card opens race_url.
+ */
+
+import { SB_URL, SB_KEY } from './shared.js';
+
+// ─── Fetch next upcoming race ──────────────────────────────────────────────────
+export async function fetchNextRace() {
+  const today = new Date().toISOString().slice(0, 10);
+  const url = `${SB_URL}/rest/v1/races` +
+    `?select=race_name,race_date,distance_m,race_url,location,country` +
+    `&race_date=gte.${today}` +
+    `&finish_time_s=is.null` +
+    `&order=race_date.asc` +
+    `&limit=1`;
+  const res = await fetch(url, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+  });
+  if (!res.ok) throw new Error(`Race fetch failed (${res.status})`);
+  const data = await res.json();
+  return data?.[0] ?? null;
+}
+
+// ─── Days until ────────────────────────────────────────────────────────────────
+function daysUntil(dateStr) {
+  const now   = new Date();
+  now.setHours(0, 0, 0, 0);
+  const target = new Date(dateStr);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target - now) / 86400000);
+}
+
+// ─── Format date  e.g. "27 Sep 2025" ──────────────────────────────────────────
+function formatDate(dateStr) {
+  return new Date(dateStr).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric'
+  });
+}
+
+// ─── Render ────────────────────────────────────────────────────────────────────
+export function renderRaceCountdown(containerId, race) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (!race) {
+    container.innerHTML = `
+      <div class="rc-empty">
+        <span class="rc-empty-icon">🏁</span>
+        <span>No upcoming races scheduled</span>
+      </div>`;
+    return;
+  }
+
+  const days    = daysUntil(race.race_date);
+  const distKm  = race.distance_m ? (race.distance_m / 1000).toFixed(1) : null;
+  const dateStr = formatDate(race.race_date);
+  const loc     = [race.location, race.country].filter(Boolean).join(', ');
+
+  // Colour accent shifts with urgency
+  const accent =
+    days <= 7  ? '#f97316' :   // imminent — orange
+    days <= 30 ? '#facc15' :   // soon — amber
+                 '#00E5A0';    // comfortable — green
+
+  // Days label
+  const daysLabel = days === 0 ? 'TODAY' : days === 1 ? '1 day to go' : `${days} days to go`;
+
+  container.innerHTML = `
+    <div class="rc-card ${race.race_url ? 'rc-tappable' : ''}"
+      id="rc-card-inner"
+      role="${race.race_url ? 'link' : 'region'}"
+      aria-label="Countdown to ${race.race_name}">
+
+      <!-- Top row: eyebrow + distance badge -->
+      <div class="rc-top-row">
+        <span class="rc-eyebrow">Next Race</span>
+        ${distKm ? `<span class="rc-dist-badge">${distKm} km</span>` : ''}
+      </div>
+
+      <!-- Race name -->
+      <h2 class="rc-name">${race.race_name}</h2>
+
+      <!-- Location -->
+      ${loc ? `<p class="rc-loc">📍 ${loc}</p>` : ''}
+
+      <!-- Countdown block -->
+      <div class="rc-countdown-wrap">
+        <div class="rc-days-number" style="color:${accent}">${days}</div>
+        <div class="rc-days-label">days</div>
+      </div>
+
+      <!-- Divider -->
+      <div class="rc-divider"></div>
+
+      <!-- Footer row: date + tap hint -->
+      <div class="rc-footer-row">
+        <span class="rc-date">${dateStr}</span>
+        ${race.race_url
+          ? `<span class="rc-tap-hint">Tap for info ›</span>`
+          : ''}
+      </div>
+
+      <!-- Progress bar: visual urgency 0–100 days scale -->
+      <div class="rc-progress-track">
+        <div class="rc-progress-fill"
+          style="width:${Math.max(2, Math.min(100, 100 - (days / 180) * 100))}%;
+                 background:${accent};"></div>
+      </div>
+
+    </div>
+  `;
+
+  // Tap → open race URL
+  if (race.race_url) {
+    document.getElementById('rc-card-inner')
+      .addEventListener('click', () => {
+        window.open(race.race_url, '_blank', 'noopener,noreferrer');
+      });
+  }
+}
