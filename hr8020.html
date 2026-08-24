@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>80/20 HR Training Dashboard · MyHealthDB</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#181c22; --panel2:#1f242c; --border:#2a3038;
+    --text:#e8eaed; --muted:#8a919c;
+    --z1:#5b8bd0; --z2:#3fb950; --z3:#e3b341; --z4:#f0883e; --z5:#f85149;
+    --low:#34D399; --mod:#FBBF24; --high:#F87171; --accent:#58a6ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;}
+  h1{font-size:1.25rem;margin:0;}
+  .sub{color:var(--muted);font-size:.85rem;margin-top:2px;}
+
+  .subheader{position:sticky;top:0;z-index:50;background:rgba(15,18,22,0.97);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--border);padding:10px 24px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;}
+  .subheader .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .subheader .zone-legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.7rem;color:var(--muted);}
+  .subheader .zone-legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px;}
+  .target-badge{background:linear-gradient(135deg,#1f2a3a,#1f2f22);border:1px solid var(--border);color:var(--text);
+    padding:5px 14px;border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  input,select,button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:.85rem;}
+  button{cursor:pointer;transition:background .15s;}
+  button:hover{background:#2a3038;}
+  button:disabled{opacity:.35;cursor:not-allowed;}
+  button.primary{background:var(--accent);color:#08131f;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{background:#79b8ff;}
+  button.nav{padding:6px 12px;font-size:1rem;}
+  main{padding:24px;max-width:1280px;margin:0 auto;}
+  .status{color:var(--muted);font-size:.8rem;margin-bottom:14px;}
+  section.block{margin-bottom:28px;}
+  .block-head{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+  .block-head h2{font-size:1rem;margin:0;}
+  .block .desc{color:var(--muted);font-size:.78rem;margin-bottom:12px;}
+
+  .week-wrap{display:flex;gap:24px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;}
+  .week-legend{display:flex;flex-direction:column;gap:8px;font-size:.82rem;min-width:220px;}
+  .week-legend .row{display:flex;align-items:center;gap:8px;}
+  .swatch{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .week-legend .mins{color:var(--muted);margin-left:auto;padding-left:14px;}
+  .donut-wrap{position:relative;width:240px;height:240px;flex:0 0 auto;}
+  .donut-wrap .chart{width:240px;height:240px;}
+  .donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;}
+  .donut-center .pct{font-size:26px;font-weight:700;color:var(--text);line-height:1.1;}
+  .donut-center .cap{font-size:10.5px;color:var(--muted);letter-spacing:.06em;margin-top:4px;}
+
+  .insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:24px;}
+  .insight-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;border-left:4px solid var(--accent);}
+  .insight-card.warn{border-left-color:var(--high);}
+  .insight-card.good{border-left-color:var(--low);}
+  .insight-card h3{margin:0 0 8px;font-size:.95rem;}
+  .insight-card p{margin:0;color:#c7ccd1;font-size:.85rem;line-height:1.45;}
+  .insight-card .stat{font-size:1.6rem;font-weight:700;margin:2px 0 6px;}
+  .insight-card .substat{display:flex;align-items:center;gap:8px;margin:8px 0 10px;padding:8px 10px;background:var(--panel2);border-radius:8px;font-size:.8rem;}
+  .insight-card .substat b{font-size:1.1rem;color:var(--text);}
+  .insight-card .substat.warn b{color:var(--high);}
+  .insight-card .substat.good b{color:var(--low);}
+
+  .recovery-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:6px;}
+  .recovery-metric{background:var(--panel2);border-radius:8px;padding:10px;}
+  .recovery-metric .label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+  .recovery-metric .value{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .recovery-metric .arrow-up{color:var(--low);} .recovery-metric .arrow-down{color:var(--high);} .recovery-metric .arrow-flat{color:var(--muted);}
+  .recovery-metric .hrvtag{font-size:.68rem;color:var(--muted);margin-top:2px;}
+
+  .race-phase-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
+  .race-phase-base{background:#1f2f22;color:#34D399;} .race-phase-build{background:#1f2a3a;color:#58a6ff;}
+  .race-phase-peak{background:#3a2f1f;color:#FBBF24;} .race-phase-taper{background:#3a2a1f;color:#f0883e;}
+  .race-phase-raceweek{background:#3a1f1f;color:#F87171;}
+  .race-detail-row{display:flex;justify-content:space-between;font-size:.82rem;padding:5px 0;border-bottom:1px solid var(--border);}
+  .race-detail-row:last-child{border-bottom:none;}
+  .race-detail-row .k{color:var(--muted);}
+
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:18px;}
+  .chart-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .chart-box h4{margin:0 0 4px;font-size:.9rem;}
+  .chart-box .desc{color:var(--muted);font-size:.75rem;margin-bottom:10px;}
+  .chart-box .chart{width:100%;height:280px;}
+
+  /* Weekly Intensity Split — enhanced hero chart card */
+  .hero-chart-box{background:linear-gradient(180deg,var(--panel) 0%,#151920 100%);border:1px solid var(--border);border-radius:14px;padding:20px;}
+  .hero-chart-head{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;}
+  .hero-chart-head h4{margin:0;font-size:1rem;}
+  .hero-chart-head .desc{color:var(--muted);font-size:.78rem;margin-top:2px;}
+  .status-chip{padding:4px 12px;border-radius:14px;font-size:.72rem;font-weight:700;letter-spacing:.02em;white-space:nowrap;}
+  .status-chip.on-target{background:rgba(52,211,153,0.15);color:var(--low);border:1px solid rgba(52,211,153,0.35);}
+  .status-chip.off-target{background:rgba(248,113,113,0.15);color:var(--high);border:1px solid rgba(248,113,113,0.35);}
+  .hero-chart-box .chart{height:320px;margin-top:6px;}
+
+  table{width:100%;border-collapse:collapse;font-size:.8rem;}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  th{color:var(--muted);font-weight:500;}
+  td.title-cell{white-space:normal;max-width:220px;}
+  .zonebar{display:flex;height:14px;width:150px;border-radius:3px;overflow:hidden;background:#000;}
+  .zonebar span{height:100%;}
+  .gcb-wrap{display:flex;align-items:center;gap:6px;font-size:.78rem;}
+  .gcb-bar{display:flex;width:70px;height:8px;border-radius:3px;overflow:hidden;background:#000;}
+  .gcb-l{background:var(--accent);} .gcb-r{background:#8a919c;}
+  .gcb-baseline{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--panel2);border-radius:8px;}
+  .gcb-baseline b{color:var(--text);}
+
+  tr.outlier-row{background:rgba(248,81,73,0.10);}
+  .outlier-flag{color:var(--high);cursor:help;font-weight:700;margin-left:4px;}
+
+  .footer-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px;padding-top:18px;border-top:1px solid var(--border);}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--low);color:#08130a;padding:10px 16px;border-radius:8px;font-size:.85rem;font-weight:600;opacity:0;transition:opacity .2s;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>80/20 HR Training Dashboard</h1>
+    <div class="sub">Live from MyHealthDB (Supabase) · Apache ECharts · updates each load</div>
+  </div>
+</header>
+
+<div class="subheader">
+  <div class="controls">
+    <select id="rangeSelect">
+      <option value="7">Last 7 days</option>
+      <option value="28" selected>Last 4 weeks</option>
+      <option value="56">Last 8 weeks</option>
+      <option value="84">Last 12 weeks</option>
+    </select>
+    <button class="nav" id="weekPrevBtn" title="Browse previous calendar week">←</button>
+    <button class="nav" id="weekNextBtn" title="Forward / back to rolling view">→</button>
+    <button id="refreshBtn">Refresh</button>
+  </div>
+  <div class="zone-legend">
+    <span><i class="dot" style="background:var(--z1)"></i>Z1</span>
+    <span><i class="dot" style="background:var(--z2)"></i>Z2</span>
+    <span><i class="dot" style="background:var(--z3)"></i>Z3</span>
+    <span><i class="dot" style="background:var(--z4)"></i>Z4</span>
+    <span><i class="dot" style="background:var(--z5)"></i>Z5</span>
+  </div>
+  <div class="target-badge">🎯 Target: 80/20</div>
+</div>
+
+<main>
+  <div class="status" id="statusLine">Loading…</div>
+
+  <!-- THIS WEEK: donut + per-run detail -->
+  <section class="block">
+    <div class="block-head">
+      <h2 id="weekHeading">Last 7 days (rolling)</h2>
+    </div>
+    <div class="desc" id="weekDesc">Rolling 7-day window ending today, recalculated on every load. Use ← in the sub-header to browse fixed Monday–Sunday calendar weeks instead.</div>
+    <div class="week-wrap">
+      <div class="donut-wrap">
+        <div id="weekDonutChart" class="chart"></div>
+        <div class="donut-center">
+          <div class="pct" id="weekDonutPct">—</div>
+          <div class="cap">LOW / HIGH %</div>
+        </div>
+      </div>
+      <div class="week-legend" id="weekLegend"></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>This Week's Runs</h2>
+    <div class="desc">Time-in-zone bar is proportional to seconds spent in each HR zone for that run. GCB = ground contact balance (left/right foot).</div>
+    <div class="gcb-baseline" id="gcbBaseline">8-week avg GCB: loading…</div>
+    <table id="weekTable">
+      <thead><tr><th>Date</th><th>Day</th><th>Strava Title</th><th>Distance</th><th>Duration</th><th>Avg Pace</th><th>Time in HR Zones</th><th>GCB</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="insights" id="insightsPanel"></section>
+
+  <!-- Weekly HR Distribution table with outlier flagging -->
+  <section class="block">
+    <h2>Weekly HR Distribution</h2>
+    <div class="desc">Same time-in-zone bucketing as the cards above (Low=Z1+2, Moderate=Z3, High=Z4+5). Rows flagged ⚠ deviate &gt;20pp from the trailing 8-week average low%.</div>
+    <table id="weeklyDistTable">
+      <thead><tr><th>Week</th><th>Runs</th><th>Low %</th><th>Moderate %</th><th>High %</th><th>Total min</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Weekly Intensity Split — redesigned hero chart (visual polish pass) -->
+  <section class="block">
+    <div class="hero-chart-box">
+      <div class="hero-chart-head">
+        <div>
+          <h4>Weekly Intensity Split</h4>
+          <div class="desc">% of running minutes per week · shaded band = 75–85% target zone for Low intensity.</div>
+        </div>
+        <span class="status-chip" id="intensityStatusChip">—</span>
+      </div>
+      <div id="stackChart" class="chart"></div>
+    </div>
+  </section>
+
+  <section class="charts">
+    <div class="chart-box">
+      <h4>80/20 Drift — Low % vs High % over time</h4>
+      <div class="desc">Line chart with reference targets at 80% and 20%. Gap from target = drift.</div>
+      <div id="driftChart" class="chart"></div>
+    </div>
+
+    <div class="chart-box">
+      <h4>Aerobic Efficiency Trend (easy runs only)</h4>
+      <div class="desc">Per-run pace ÷ avg HR for every individual Zone 1/2 run in range (not weekly-averaged) — falling = improving aerobic fitness at the same effort.</div>
+      <div id="efficiencyChart" class="chart"></div>
+    </div>
+  </section>
+
+  <div class="chart-box" style="margin-top:18px;">
+    <h4>Hard Session Log (Zone 4/5 time &gt; 2 min)</h4>
+    <div class="desc">Based on time-in-zone seconds, not overall average HR — a run can have a moderate average HR while still containing a genuinely hard interval block.</div>
+    <table id="hardTable"><thead><tr><th>Date</th><th>Activity</th><th>Zone 4+5 time</th><th>Avg HR</th><th>Max HR</th><th>Duration</th><th>Distance (km)</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <!-- Recovery + Race Goal cards — moved to bottom -->
+  <section class="insights" style="margin-top:8px;">
+    <div class="insight-card" id="recoveryCard">
+      <h3>Recovery (today vs 7-day avg)</h3>
+      <div class="recovery-grid" id="recoveryGrid"><div style="color:var(--muted);font-size:.82rem;">Loading…</div></div>
+    </div>
+    <div class="insight-card" id="raceCard">
+      <h3>Race Goal / Training Phase</h3>
+      <div id="raceBody" style="font-size:.85rem;color:var(--muted);">Loading…</div>
+    </div>
+  </section>
+
+  <div class="footer-actions">
+    <button id="copyDataBtn">📋 Copy raw data (JSON)</button>
+    <button class="primary" id="copyPromptBtn">🤖 Copy Prompt for AI Coach</button>
+  </div>
+</main>
+
+<div class="toast" id="toast">Copied to clipboard</div>
+
+<script>
+const SUPABASE_URL = "https://krgbagjignvbnrgybdos.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
+
+const ZONE_HEX = { z1:'#5b8bd0', z2:'#3fb950', z3:'#e3b341', z4:'#f0883e', z5:'#f85149' };
+const CHART_FONT = '-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+const TXT_STYLE = { color:'#c7ccd1', fontFamily: CHART_FONT };
+const GRID_LINE = { lineStyle:{ color:'#2a3038' } };
+const AXIS_LABEL = { color:'#8a919c' };
+const HARD_ZONE_MIN_SEC = 120;
+const OUTLIER_THRESHOLD_PP = 20;
+const GCB_WATCH_LOW = 47, GCB_WATCH_HIGH = 53;
+
+// Refined, slightly desaturated palette for the Low/Moderate/High buckets —
+// keeps the same green/amber/red semantics but with softer, more accessible tones.
+const BUCKET_COLOR = { low:'#34D399', moderate:'#FBBF24', high:'#F87171' };
+
+const state = {
+  sb:null, weeklyPct:[], efficiency:[], scatter:[], hard:[], hardAll:[], cutpoints:null,
+  daysBack:28, insights:[],
+  weekMode:'rolling', weekOffset:-1,
+  weekTotals:null, weekDetail:[],
+  recovery:null, nextRace:null, gcbBaseline:null,
+  summary:{ intensity:null, race:null, outlierWeeks:[], gcb:null, recencyText:null }
+};
+
+document.getElementById('refreshBtn').onclick = loadAll;
+document.getElementById('rangeSelect').onchange = loadAll;
+
+document.getElementById('weekPrevBtn').onclick = () => {
+  if(state.weekMode === 'rolling'){ state.weekMode = 'calendar'; state.weekOffset = -1; }
+  else if(state.weekOffset > -4){ state.weekOffset--; }
+  loadWeek();
+};
+document.getElementById('weekNextBtn').onclick = () => {
+  if(state.weekMode === 'calendar'){
+    state.weekOffset++;
+    if(state.weekOffset >= 0){ state.weekMode = 'rolling'; state.weekOffset = -1; }
+  }
+  loadWeek();
+};
+
+// ---------- FORMAT HELPERS ----------
+function fmtDuration(s){
+  if(s==null) return '—';
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = Math.round(s%60);
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
+}
+function fmtPace(spk){
+  if(spk==null) return '—';
+  const m = Math.floor(spk/60), s = Math.round(spk%60);
+  return `${m}:${String(s).padStart(2,'0')}/km`;
+}
+function fmtHoursMinutes(totalSeconds){
+  if(totalSeconds==null) return '—';
+  const h = Math.floor(totalSeconds/3600), m = Math.round((totalSeconds%3600)/60);
+  return `${h}h ${String(m).padStart(2,'0')}m`;
+}
+function fmtDecimalHours(totalSeconds){
+  if(totalSeconds==null) return '—';
+  return (totalSeconds/3600).toFixed(1);
+}
+function fmtRaceTime(s){
+  if(s==null) return 'not set';
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = Math.round(s%60);
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${m}:${String(sec).padStart(2,'0')}`;
+}
+function rangeLabelText(){
+  return state.daysBack <= 7 ? `${state.daysBack} days` : `${Math.round(state.daysBack/7)} weeks`;
+}
+function getChart(id){
+  const dom = document.getElementById(id);
+  return echarts.getInstanceByDom(dom) || echarts.init(dom);
+}
+function arrowFor(today, avg, higherIsBetter){
+  if(today==null || avg==null) return { cls:'arrow-flat', glyph:'—' };
+  const diffPct = avg===0 ? 0 : ((today-avg)/Math.abs(avg))*100;
+  if(Math.abs(diffPct) < 3) return { cls:'arrow-flat', glyph:'→' };
+  const better = higherIsBetter ? diffPct > 0 : diffPct < 0;
+  return better ? { cls:'arrow-up', glyph:'▲' } : { cls:'arrow-down', glyph:'▼' };
+}
+
+async function loadAll(){
+  if(!state.sb) state.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const statusLine = document.getElementById('statusLine');
+  state.daysBack = +document.getElementById('rangeSelect').value;
+  statusLine.textContent = 'Loading from MyHealthDB…';
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - state.daysBack);
+  const cutoffISO = cutoffDate.toISOString().slice(0,10);
+
+  try {
+    const [pctRes, scatterRes, cutRes, hardRes, hardAllRes, recoveryRes, raceRes, gcbRes] = await Promise.all([
+      state.sb.from('v_run_weekly_hr_pct').select('*').gte('week_start', cutoffISO).order('week_start'),
+      state.sb.from('v_run_hr_pace_scatter').select('*').gte('run_date', cutoffISO).order('run_date'),
+      state.sb.from('v_hr_zone_cutpoints').select('*').single(),
+      state.sb.rpc('get_hard_sessions_by_zone', { days_back: state.daysBack, min_hard_seconds: HARD_ZONE_MIN_SEC }),
+      state.sb.rpc('get_hard_sessions_by_zone', { days_back: 120, min_hard_seconds: HARD_ZONE_MIN_SEC }),
+      state.sb.rpc('get_recovery_summary'),
+      state.sb.rpc('get_next_race'),
+      state.sb.from('v_run_gcb_baseline_8w').select('*').single()
+    ]);
+    if(pctRes.error) throw pctRes.error;
+    if(hardRes.error) throw hardRes.error;
+
+    state.weeklyPct = pctRes.data || [];
+    // Still fetched even though the HR-vs-Pace scatter chart itself was removed —
+    // this feed is also the source for per-run aerobic efficiency below.
+    state.scatter = scatterRes.data || [];
+    state.cutpoints = cutRes.data || {low_upper_bpm:'?', high_lower_bpm:'?'};
+    state.hard = hardRes.data || [];
+    state.hardAll = hardAllRes.data || [];
+    state.recovery = (recoveryRes.data && recoveryRes.data[0]) || null;
+    state.nextRace = (raceRes.data && raceRes.data[0]) || null;
+    state.gcbBaseline = gcbRes.data || null;
+
+    state.efficiency = state.scatter
+      .filter(d => d.bucket === 'low' && d.avg_hr && d.avg_pace_s_per_km)
+      .map(d => ({ run_date:d.run_date, avg_hr:+d.avg_hr, avg_pace_s_per_km:+d.avg_pace_s_per_km, pace_per_hr_beat: +d.avg_pace_s_per_km / +d.avg_hr }))
+      .sort((a,b)=> new Date(a.run_date) - new Date(b.run_date));
+
+    statusLine.textContent = `Loaded ${rangeLabelText()} · low/high cutoffs: ${state.cutpoints.low_upper_bpm} / ${state.cutpoints.high_lower_bpm} bpm · last updated ${new Date().toLocaleTimeString()}`;
+
+    renderRecoveryCard();
+    renderRaceCard();
+    renderGcbBaseline();
+    renderInsights();
+    renderWeeklyDistTable();
+    renderStackChart();
+    renderDriftChart();
+    renderEfficiencyChart();
+    renderHardTable();
+    await loadWeek();
+  } catch(err){
+    statusLine.textContent = 'Error loading data: ' + err.message;
+    console.error(err);
+  }
+}
+
+// ---------- RECOVERY CARD ----------
+function renderRecoveryCard(){
+  const grid = document.getElementById('recoveryGrid');
+  const r = state.recovery;
+  if(!r){ grid.innerHTML = '<div style="color:var(--muted);font-size:.82rem;">No recovery data available.</div>'; return; }
+
+  const metrics = [
+    { label:'Resting HR', today:r.today_resting_hr, avg:r.avg7_resting_hr, unit:'bpm', higherIsBetter:false },
+    { label:'HRV last night', today:r.today_hrv, avg:r.avg7_hrv, unit:'ms', higherIsBetter:true, tag:r.today_hrv_status },
+    { label:'Sleep score', today:r.today_sleep_score, avg:r.avg7_sleep_score, unit:'', higherIsBetter:true },
+    { label:'Sleep duration', today:r.today_sleep_duration_s, avg:r.avg7_sleep_duration_s, unit:'', higherIsBetter:true, isDuration:true },
+    { label:'Body battery (wake)', today:r.today_bb_wake, avg:r.avg7_bb_wake, unit:'', higherIsBetter:true }
+  ];
+
+  grid.innerHTML = metrics.map(m => {
+    const todayDisp = m.today==null ? '—' : (m.isDuration ? fmtHoursMinutes(m.today) : `${m.today}${m.unit?' '+m.unit:''}`);
+    const avgDisp = m.avg==null ? '—' : (m.isDuration ? fmtHoursMinutes(m.avg) : `${m.avg}${m.unit?' '+m.unit:''}`);
+    const arrow = arrowFor(m.today, m.avg, m.higherIsBetter);
+    return `<div class="recovery-metric">
+      <div class="label">${m.label}</div>
+      <div class="value">${todayDisp} / ${avgDisp} <span class="${arrow.cls}">${arrow.glyph}</span></div>
+      ${m.tag ? `<div class="hrvtag">${m.today} vs ${m.avg} avg (${m.tag})</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ---------- RACE GOAL / TRAINING PHASE CARD ----------
+function trainingPhase(weeks){
+  if(weeks==null) return null;
+  if(weeks >= 20) return { label:'Base', cls:'race-phase-base' };
+  if(weeks >= 9) return { label:'Build', cls:'race-phase-build' };
+  if(weeks >= 4) return { label:'Peak', cls:'race-phase-peak' };
+  if(weeks >= 1) return { label:'Taper', cls:'race-phase-taper' };
+  return { label:'Race Week', cls:'race-phase-raceweek' };
+}
+function renderRaceCard(){
+  const body = document.getElementById('raceBody');
+  const r = state.nextRace;
+  if(!r || !r.race_name){
+    body.innerHTML = '<div style="color:var(--muted)">No upcoming race set</div>';
+    state.summary.race = { exists:false };
+    return;
+  }
+  const phase = trainingPhase(r.weeks_remaining);
+  state.summary.race = { exists:true, phaseLabel: phase ? phase.label : null };
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <strong style="font-size:1rem;">${r.race_name}</strong>
+      ${phase ? `<span class="race-phase-badge ${phase.cls}">${phase.label}</span>` : ''}
+    </div>
+    <div class="race-detail-row"><span class="k">Date</span><span>${new Date(r.race_date).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</span></div>
+    <div class="race-detail-row"><span class="k">Distance</span><span>${r.distance_km!=null ? r.distance_km+' km' : '—'}</span></div>
+    <div class="race-detail-row"><span class="k">Location</span><span>${r.location || r.country || '—'}</span></div>
+    <div class="race-detail-row"><span class="k">Time remaining</span><span>${r.days_remaining} days (${r.weeks_remaining} weeks)</span></div>
+    <div class="race-detail-row"><span class="k">Target time</span><span>${fmtRaceTime(r.target_time_s)}</span></div>
+  `;
+}
+
+// ---------- GCB 8-WEEK BASELINE ----------
+function renderGcbBaseline(){
+  const el = document.getElementById('gcbBaseline');
+  const g = state.gcbBaseline;
+  if(!g || g.avg_left_pct==null){ el.textContent = '8-week avg GCB: not enough data'; state.summary.gcb = null; return; }
+  const l = +g.avg_left_pct, right = 100-l;
+  const watch = l < GCB_WATCH_LOW || l > GCB_WATCH_HIGH;
+  state.summary.gcb = { left:l, right, runs:g.runs, watch };
+  el.innerHTML = `8-week avg GCB: <b>${l.toFixed(1)}L / ${right.toFixed(1)}R</b> across ${g.runs} runs
+    ${watch ? ` <span style="color:var(--high)">⚠ outside ${GCB_WATCH_LOW}/${GCB_WATCH_HIGH} — worth monitoring</span>` : ` (within normal ${GCB_WATCH_LOW}/${GCB_WATCH_HIGH} range)`}`;
+}
+
+// ---------- WEEKLY HR DISTRIBUTION TABLE + OUTLIER FLAGGING ----------
+function renderWeeklyDistTable(){
+  const tbody = document.querySelector('#weeklyDistTable tbody');
+  tbody.innerHTML = '';
+  state.summary.outlierWeeks = [];
+  const rows = state.weeklyPct;
+  if(!rows.length){ tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted)">No data in this range.</td></tr>`; return; }
+
+  rows.forEach((row, i) => {
+    const windowRows = rows.slice(Math.max(0, i-8), i);
+    const trailingAvg = windowRows.length ? windowRows.reduce((s,r)=> s + (+r.low_pct||0), 0) / windowRows.length : null;
+    const lowPct = +row.low_pct || 0;
+    const deviation = trailingAvg!=null ? lowPct - trailingAvg : null;
+    const isOutlier = deviation!=null && windowRows.length>=3 && Math.abs(deviation) > OUTLIER_THRESHOLD_PP;
+    if(isOutlier){
+      state.summary.outlierWeeks.push({ week_start: row.week_start, low_pct: lowPct, moderate_pct: +row.moderate_pct||0, avgLowPct: +trailingAvg.toFixed(1) });
+    }
+    const tr = document.createElement('tr');
+    if(isOutlier) tr.className = 'outlier-row';
+    tr.innerHTML = `<td>${row.week_start}${isOutlier ? `<span class="outlier-flag" title="Deviates >${OUTLIER_THRESHOLD_PP}pp from 8-week average (${trailingAvg.toFixed(1)}%) — check for data sync issues.">⚠</span>` : ''}</td>
+      <td>${row.runs ?? 0}</td>
+      <td>${(+row.low_pct||0).toFixed(1)}%</td>
+      <td>${(+row.moderate_pct||0).toFixed(1)}%</td>
+      <td>${(+row.high_pct||0).toFixed(1)}%</td>
+      <td>${(+row.total_minutes||0).toFixed(0)} min</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadWeek(){
+  if(!state.sb) state.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  document.getElementById('weekNextBtn').disabled = state.weekMode === 'rolling';
+  document.getElementById('weekPrevBtn').disabled = state.weekMode === 'calendar' && state.weekOffset <= -4;
+  try {
+    const rpcName = state.weekMode === 'rolling' ? 'get_rolling_zone_totals' : 'get_week_zone_totals';
+    const detailRpcName = state.weekMode === 'rolling' ? 'get_rolling_detail' : 'get_week_detail';
+    const rpcArg = state.weekMode === 'rolling' ? { days_back: 7 } : { week_offset: state.weekOffset };
+    const [totalsRes, detailRes] = await Promise.all([
+      state.sb.rpc(rpcName, rpcArg),
+      state.sb.rpc(detailRpcName, rpcArg)
+    ]);
+    if(totalsRes.error) throw totalsRes.error;
+    state.weekTotals = (totalsRes.data && totalsRes.data[0]) || null;
+    state.weekDetail = detailRes.data || [];
+    renderWeekHeading();
+    renderWeekDonut();
+    renderWeekTable();
+  } catch(err){
+    console.error(err);
+  }
+}
+
+function renderWeekHeading(){
+  const heading = document.getElementById('weekHeading');
+  const desc = document.getElementById('weekDesc');
+  if(!state.weekTotals){ heading.textContent = 'No data'; return; }
+  if(state.weekMode === 'rolling'){
+    const end = new Date(); const start = new Date(); start.setDate(start.getDate()-7);
+    const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    heading.textContent = `Last 7 days (rolling) · ${fmt(start)} – ${fmt(end)}`;
+    desc.textContent = 'Rolling 7-day window ending today, recalculated on every load. Use ← in the sub-header to browse fixed Monday–Sunday calendar weeks instead.';
+  } else {
+    const start = new Date(state.weekTotals.week_start);
+    const end = new Date(start); end.setDate(end.getDate()+6);
+    const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    const suffix = ` (${Math.abs(state.weekOffset)} week${Math.abs(state.weekOffset)>1?'s':''} ago)`;
+    heading.textContent = `${fmt(start)} – ${fmt(end)}${suffix}`;
+    desc.textContent = 'Fixed Monday–Sunday calendar week. Use → to move forward, back to the rolling 7-day default.';
+  }
+}
+
+function renderWeekDonut(){
+  const legend = document.getElementById('weekLegend'); legend.innerHTML = '';
+  const pctEl = document.getElementById('weekDonutPct');
+  const t = state.weekTotals;
+  const zoneVals = t ? [+t.z1_sec||0, +t.z2_sec||0, +t.z3_sec||0, +t.z4_sec||0, +t.z5_sec||0] : [0,0,0,0,0];
+  const total = zoneVals.reduce((a,b)=>a+b,0);
+  const lowSec = zoneVals[0]+zoneVals[1];
+  const lowPct = total ? Math.round(100*lowSec/total) : null;
+  const highPct = total ? 100-lowPct : null;
+  pctEl.textContent = total ? `${lowPct}/${highPct}%` : '—';
+
+  const zoneLabels = ['Zone 1','Zone 2','Zone 3','Zone 4','Zone 5'];
+  const chart = getChart('weekDonutChart');
+  const pieData = total
+    ? zoneVals.map((v,i)=>({ value:v, name:zoneLabels[i], itemStyle:{ color: ZONE_HEX['z'+(i+1)] } }))
+    : [{ value:1, name:'No data', itemStyle:{ color:'#2a3038' } }];
+  chart.setOption({
+    backgroundColor:'transparent', textStyle: TXT_STYLE,
+    tooltip: total ? { trigger:'item', formatter: p => `${p.name}: ${(p.value/60).toFixed(1)} min (${p.percent}%)` } : { show:false },
+    series: [{ type:'pie', radius: ['62%','92%'], avoidLabelOverlap:false,
+      itemStyle:{ borderRadius:6, borderColor:'#0f1216', borderWidth:4 },
+      label:{ show:false }, labelLine:{ show:false }, emphasis:{ scale:true, scaleSize:4 }, data: pieData }]
+  }, true);
+
+  zoneVals.forEach((v,i)=>{
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = `<span class="swatch" style="background:${ZONE_HEX['z'+(i+1)]}"></span>${zoneLabels[i]}<span class="mins">${(v/60).toFixed(0)} min · ${total? (100*v/total).toFixed(0):0}%</span>`;
+    legend.appendChild(row);
+  });
+  const totalRow = document.createElement('div'); totalRow.className='row';
+  totalRow.style.borderTop = '1px solid var(--border)'; totalRow.style.paddingTop='8px'; totalRow.style.marginTop='2px';
+  totalRow.innerHTML = `<strong>Total: ${(total/60).toFixed(0)} min</strong><span class="mins">${state.weekDetail.length} run(s)</span>`;
+  legend.appendChild(totalRow);
+}
+
+function renderWeekTable(){
+  const tbody = document.querySelector('#weekTable tbody');
+  tbody.innerHTML = '';
+  if(!state.weekDetail.length){ tbody.innerHTML = `<tr><td colspan="8" style="color:var(--muted)">No runs logged for this window.</td></tr>`; return; }
+  state.weekDetail.forEach(r=>{
+    const zoneVals = [+r.z1_sec||0, +r.z2_sec||0, +r.z3_sec||0, +r.z4_sec||0, +r.z5_sec||0];
+    const zTotal = zoneVals.reduce((a,b)=>a+b,0) || 1;
+    const bar = zoneVals.map((v,i)=>`<span style="width:${100*v/zTotal}%;background:${ZONE_HEX['z'+(i+1)]}"></span>`).join('');
+    const dateStr = new Date(r.run_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+    let gcbHtml = '—';
+    if(r.gcb_left_pct != null){
+      const l = +r.gcb_left_pct, right = 100-l;
+      gcbHtml = `<div class="gcb-wrap"><span>${l.toFixed(1)}L/${right.toFixed(1)}R%</span>
+        <div class="gcb-bar"><span class="gcb-l" style="width:${l}%"></span><span class="gcb-r" style="width:${right}%"></span></div></div>`;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${dateStr}</td><td>${r.day_label}</td><td class="title-cell">${r.strava_activity_name || r.activity_name || '—'}</td>
+      <td>${(+r.km).toFixed(1)} km</td><td>${fmtDuration(r.moving_time_s)}</td><td>${fmtPace(r.avg_pace_s_per_km)}</td>
+      <td><div class="zonebar">${bar}</div></td><td>${gcbHtml}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- INTELLIGENCE LAYER ----------
+function linregSlope(points){
+  const n = points.length; if(n < 2) return 0;
+  const sx = points.reduce((s,p)=>s+p[0],0), sy = points.reduce((s,p)=>s+p[1],0);
+  const sxy = points.reduce((s,p)=>s+p[0]*p[1],0), sxx = points.reduce((s,p)=>s+p[0]*p[0],0);
+  const denom = n*sxx - sx*sx; return denom === 0 ? 0 : (n*sxy - sx*sy) / denom;
+}
+function computeDaysSinceLastHard(){
+  if(!state.hardAll.length) return { days:null, text:'No Zone 4/5 sessions (>2 min) in the last 120 days.' };
+  const mostRecent = state.hardAll.reduce((max,r)=> new Date(r.run_date) > max ? new Date(r.run_date) : max, new Date(state.hardAll[0].run_date));
+  const days = Math.round((new Date().setHours(0,0,0,0) - mostRecent.setHours(0,0,0,0)) / 86400000);
+  return { days, text: days===0 ? 'Today' : days===1 ? '1 day ago' : `${days} days ago` };
+}
+function computeInsight1_Polarization(){
+  const w = state.weeklyPct;
+  const recency = computeDaysSinceLastHard();
+  if(!w.length){ state.summary.intensity = null; return { title:'Intensity Distribution', stat:'—', text:`No runs with HR data in the last ${rangeLabelText()}.`, severity:'warn', recency }; }
+  const totalMin = w.reduce((s,r)=>s+ (+r.total_minutes||0),0);
+  const lowMin = w.reduce((s,r)=>s+ (+r.low_minutes||0),0);
+  const modMin = w.reduce((s,r)=>s+ (+r.moderate_minutes||0),0);
+  const highMin = w.reduce((s,r)=>s+ (+r.high_minutes||0),0);
+  const lowPct = totalMin? (100*lowMin/totalMin):0, modPct = totalMin? (100*modMin/totalMin):0, highPct = totalMin? (100*highMin/totalMin):0;
+  const gap = 20 - highPct;
+  let severity = 'good', verdict, comparisonText;
+  if (highPct < 12) { severity='warn'; verdict = `You're running closer to ${Math.round(lowPct)}/${Math.round(modPct+highPct)} than 80/20 — the "hard" portion is ${gap.toFixed(1)} points under target.`; comparisonText = `${gap.toFixed(1)} percentage points under the 20% high-intensity target`; }
+  else if (highPct > 25) { severity='warn'; verdict = `High-intensity minutes (${highPct.toFixed(1)}%) exceed the 20% target — watch recovery and injury risk.`; comparisonText = `${(highPct-20).toFixed(1)} percentage points over the 20% high-intensity target`; }
+  else { verdict = `Your split (${lowPct.toFixed(1)}% low / ${modPct.toFixed(1)}% moderate / ${highPct.toFixed(1)}% high) is close to the 80/20 target.`; comparisonText = 'close to the 80/20 target'; }
+  state.summary.intensity = { lowPct, modPct, highPct, totalMin, comparisonText };
+  return { title:'Intensity Distribution', stat:`${lowPct.toFixed(0)}/${modPct.toFixed(0)}/${highPct.toFixed(0)}`,
+    text:`${verdict} (Low/Moderate/High % of ${Math.round(totalMin)} total running minutes over ${rangeLabelText()}. Time-in-zone based.)`, severity, recency };
+}
+function computeInsight2_Efficiency(){
+  const e = state.efficiency;
+  if(e.length < 3) return { title:'Aerobic Efficiency Trend', stat:'—', text:`Only ${e.length} easy (Zone 1/2) run(s) with HR+pace data in the last ${rangeLabelText()} — need at least 3 to show a trend. Try a longer range.`, severity:'warn' };
+  const pts = e.map((r,i)=>[i, r.pace_per_hr_beat]); linregSlope(pts);
+  const first = e[0].pace_per_hr_beat, last = e[e.length-1].pace_per_hr_beat;
+  const pctChange = ((last-first)/first)*100;
+  let severity, verdict;
+  if (pctChange < -2){ severity='good'; verdict = `Improving — pace-per-heartbeat dropped ${Math.abs(pctChange).toFixed(1)}% across ${e.length} easy runs (${first.toFixed(2)} → ${last.toFixed(2)}), meaning you're running faster at the same easy-zone effort.`; }
+  else if (pctChange > 2){ severity='warn'; verdict = `Declining — pace-per-heartbeat rose ${pctChange.toFixed(1)}% across ${e.length} easy runs (${first.toFixed(2)} → ${last.toFixed(2)}). Could be fatigue, heat, or terrain.`; }
+  else { severity='good'; verdict = `Stable — pace-per-heartbeat is flat across ${e.length} easy runs (${first.toFixed(2)} → ${last.toFixed(2)}), consistent with a maintained aerobic base.`; }
+  return { title:'Aerobic Efficiency Trend', stat:`${pctChange>0?'+':''}${pctChange.toFixed(1)}%`, text:verdict, severity };
+}
+function computeInsight3_HardConsistency(){
+  const h = state.hard; const weeksInRange = Math.max(state.daysBack/7, 1);
+  if(!h.length) return { title:'Hard Session Consistency', stat:'0 sessions', text:`No sessions with >${HARD_ZONE_MIN_SEC/60} min in Zone 4/5 in the last ${rangeLabelText()} — the "hard 20%" is effectively missing.`, severity:'warn' };
+  const dates = h.map(r=>new Date(r.run_date)).sort((a,b)=>a-b);
+  const gaps = []; for(let i=1;i<dates.length;i++) gaps.push((dates[i]-dates[i-1])/(1000*3600*24));
+  const avgGap = gaps.length? gaps.reduce((a,b)=>a+b,0)/gaps.length : null;
+  const maxGap = gaps.length? Math.max(...gaps) : null;
+  const perWeek = h.length / weeksInRange;
+  let severity='good', verdict;
+  if (perWeek < 0.5){ severity='warn'; verdict = `Only ${h.length} hard session(s) (Zone 4/5 &gt;${HARD_ZONE_MIN_SEC/60} min) in the last ${rangeLabelText()} (~${perWeek.toFixed(2)}/week). Aim for at least 1 focused hard session weekly.`; }
+  else if (maxGap && maxGap > 21){ severity='warn'; verdict = `${h.length} hard sessions logged, but the longest gap between them was ${Math.round(maxGap)} days — inconsistent spacing weakens the training effect.`; }
+  else { verdict = `${h.length} hard sessions (Zone 4/5 &gt;${HARD_ZONE_MIN_SEC/60} min) over the last ${rangeLabelText()}, averaging one every ${avgGap?avgGap.toFixed(1):'?'} days — reasonably consistent.`; }
+  return { title:'Hard Session Consistency', stat:`${h.length} sessions`, text:verdict, severity };
+}
+function renderInsights(){
+  state.insights = [computeInsight1_Polarization(), computeInsight2_Efficiency(), computeInsight3_HardConsistency()].filter(Boolean);
+  state.summary.recencyText = state.insights[0] && state.insights[0].recency ? state.insights[0].recency : computeDaysSinceLastHard();
+  const panel = document.getElementById('insightsPanel');
+  panel.innerHTML = '';
+  state.insights.forEach(ins => {
+    const div = document.createElement('div');
+    div.className = 'insight-card ' + (ins.severity||'');
+    let subStatHtml = '';
+    if(ins.recency){
+      const sevClass = ins.recency.days!=null && ins.recency.days<=1 ? 'good' : (ins.recency.days!=null && ins.recency.days>10 ? 'warn' : '');
+      subStatHtml = `<div class="substat ${sevClass}"><b>${ins.recency.days!=null ? ins.recency.days : '—'}</b> ${ins.recency.days!=null ? (ins.recency.days===1?'day':'days')+' since last hard session' : ''}${ins.recency.days==null?ins.recency.text:''}</div>`;
+    }
+    div.innerHTML = `<h3>${ins.title}</h3><div class="stat">${ins.stat}</div>${subStatHtml}<p>${ins.text}</p>`;
+    panel.appendChild(div);
+  });
+}
+
+// ---------- ECHARTS: Weekly Intensity Split (redesigned) ----------
+function renderStackChart(){
+  const data = state.weeklyPct;
+  const el = document.getElementById('stackChart');
+  const chip = document.getElementById('intensityStatusChip');
+  if(!data.length){ el.innerHTML = '<div style="color:var(--muted);padding:20px">No data in this range.</div>'; chip.style.display='none'; return; }
+
+  const lastLow = +data[data.length-1].low_pct || 0;
+  const onTarget = Math.abs(lastLow-80) <= 10;
+  chip.style.display='inline-block';
+  chip.className = 'status-chip ' + (onTarget ? 'on-target' : 'off-target');
+  chip.textContent = onTarget ? `On target (${lastLow.toFixed(0)}% low)` : `Off target (${lastLow.toFixed(0)}% low)`;
+
+  const chart = getChart('stackChart');
+  const categories = data.map(d => d.week_start.slice(5));
+  chart.setOption({
+    backgroundColor:'transparent', textStyle: TXT_STYLE,
+    grid:{ left:44, right:16, top:34, bottom:56 },
+    legend:{ top:0, itemGap:20, icon:'circle', textStyle:{ color:'#c7ccd1' } },
+    tooltip:{
+      trigger:'axis', axisPointer:{ type:'shadow', shadowStyle:{ color:'rgba(255,255,255,0.04)' } },
+      backgroundColor:'#0d1117', borderColor:'#2a3038', textStyle:{ color:'#e8eaed' },
+      valueFormatter: v => v.toFixed(1)+'%'
+    },
+    xAxis:{ type:'category', data:categories, axisLabel:{ ...AXIS_LABEL, rotate:0 }, axisLine: GRID_LINE, axisTick:{ show:false } },
+    yAxis:{ type:'value', max:100, splitNumber:5, axisLabel:{ ...AXIS_LABEL, formatter:'{value}%' }, splitLine:{ lineStyle:{ color:'#232932', type:'dashed' } } },
+    barCategoryGap:'35%',
+    series:[
+      { name:'Low', type:'bar', stack:'total', data:data.map(d=>+d.low_pct||0),
+        itemStyle:{ color:BUCKET_COLOR.low, borderRadius:[3,3,0,0], borderColor:'#0f1216', borderWidth:1 },
+        markArea:{ silent:true, itemStyle:{ color:'rgba(52,211,153,0.08)' }, data:[[{ yAxis:75 },{ yAxis:85 }]] } },
+      { name:'Moderate', type:'bar', stack:'total', data:data.map(d=>+d.moderate_pct||0),
+        itemStyle:{ color:BUCKET_COLOR.moderate, borderColor:'#0f1216', borderWidth:1 } },
+      { name:'High', type:'bar', stack:'total', data:data.map(d=>+d.high_pct||0),
+        itemStyle:{ color:BUCKET_COLOR.high, borderRadius:[0,0,3,3], borderColor:'#0f1216', borderWidth:1 },
+        markLine:{ silent:true, symbol:'none', lineStyle:{ color:'#ffffff', type:'dashed', opacity:0.6, width:1.5 },
+          label:{ formatter:'80% target', color:'#e8eaed', backgroundColor:'#1f242c', padding:[3,6], borderRadius:4, position:'insideEndTop' },
+          data:[{ yAxis:80 }] } }
+    ]
+  }, true);
+}
+
+function renderDriftChart(){
+  const data = state.weeklyPct;
+  const el = document.getElementById('driftChart');
+  if(!data.length){ el.innerHTML = '<div style="color:var(--muted);padding:20px">No data in this range.</div>'; return; }
+  const chart = getChart('driftChart');
+  const categories = data.map(d => d.week_start.slice(5));
+  chart.setOption({
+    backgroundColor:'transparent', textStyle: TXT_STYLE,
+    grid:{ left:44, right:16, top:36, bottom:56 },
+    legend:{ top:0, textStyle:{ color:'#c7ccd1' } },
+    tooltip:{ trigger:'axis' },
+    xAxis:{ type:'category', data:categories, axisLabel:{ ...AXIS_LABEL, rotate:45 }, axisLine: GRID_LINE },
+    yAxis:{ type:'value', max:100, axisLabel:{ ...AXIS_LABEL, formatter:'{value}%' }, splitLine: GRID_LINE },
+    series:[
+      { name:'Low %', type:'line', data:data.map(d=>+d.low_pct||0), smooth:true, symbolSize:6, lineStyle:{ width:2.5 }, itemStyle:{ color:BUCKET_COLOR.low },
+        markLine:{ silent:true, symbol:'none', lineStyle:{ color:BUCKET_COLOR.low, type:'dashed', opacity:0.5 }, label:{ formatter:'80% target', color:'#c7ccd1' }, data:[{ yAxis:80 }] } },
+      { name:'High %', type:'line', data:data.map(d=>+d.high_pct||0), smooth:true, symbolSize:6, lineStyle:{ width:2.5 }, itemStyle:{ color:BUCKET_COLOR.high },
+        markLine:{ silent:true, symbol:'none', lineStyle:{ color:BUCKET_COLOR.high, type:'dashed', opacity:0.5 }, label:{ formatter:'20% target', color:'#c7ccd1' }, data:[{ yAxis:20 }] } }
+    ]
+  }, true);
+}
+
+function renderEfficiencyChart(){
+  const data = state.efficiency;
+  const el = document.getElementById('efficiencyChart');
+  if(!data.length){ el.innerHTML = '<div style="color:var(--muted);padding:20px">No easy-run data in this range.</div>'; return; }
+  const chart = getChart('efficiencyChart');
+  const categories = data.map(d => new Date(d.run_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}));
+  chart.setOption({
+    backgroundColor:'transparent', textStyle: TXT_STYLE,
+    grid:{ left:50, right:16, top:20, bottom:56 },
+    tooltip:{ trigger:'axis', valueFormatter: v => v.toFixed(3) },
+    xAxis:{ type:'category', data:categories, axisLabel:{ ...AXIS_LABEL, rotate:45 }, axisLine: GRID_LINE },
+    yAxis:{ type:'value', axisLabel: AXIS_LABEL, splitLine: GRID_LINE, name:'sec/km per bpm', nameTextStyle:{ color:'#8a919c' } },
+    series:[{ name:'Pace per HR beat', type:'line', data:data.map(d=>d.pace_per_hr_beat), smooth:true, symbolSize:5,
+      itemStyle:{ color:'#58a6ff' }, lineStyle:{ color:'#58a6ff', width:2.5 },
+      areaStyle:{ color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{ offset:0, color:'rgba(88,166,255,0.35)' },{ offset:1, color:'rgba(88,166,255,0.02)' }] } } }]
+  }, true);
+}
+
+function renderHardTable(){
+  const tbody = document.querySelector('#hardTable tbody');
+  tbody.innerHTML = '';
+  if(!state.hard.length){ tbody.innerHTML = `<tr><td colspan="7" style="color:var(--muted)">No sessions with >${HARD_ZONE_MIN_SEC/60} min in Zone 4/5 in this range.</td></tr>`; return; }
+  state.hard.slice(0,25).forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.run_date}</td><td>${r.strava_activity_name || r.activity_name || ''}</td>
+      <td>${Math.round((+r.hard_zone_sec||0)/60)} min</td><td>${r.avg_hr||''}</td><td>${r.max_hr||''}</td>
+      <td>${fmtDuration(r.moving_time_s)}</td><td>${(+r.km).toFixed(1)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---------- COPY ACTIONS ----------
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+document.getElementById('copyDataBtn').onclick = () => {
+  const payload = {
+    range: rangeLabelText(), hr_cutpoints: state.cutpoints, week_mode: state.weekMode, week_offset: state.weekOffset,
+    this_week_zone_totals: state.weekTotals, this_week_runs: state.weekDetail, weekly_hr_pct: state.weeklyPct,
+    per_run_easy_efficiency: state.efficiency, hard_sessions_in_range: state.hard,
+    days_since_last_hard_session: state.summary.recencyText, recovery: state.recovery, next_race: state.nextRace, gcb_8week_baseline: state.gcbBaseline
+  };
+  navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(()=>showToast('Data copied as JSON'));
+};
+
+function readableRun(r){
+  return { date: r.run_date, day: r.day_label, title: r.strava_activity_name || r.activity_name || null,
+    km: r.km!=null ? (+r.km).toFixed(1) : null, duration: fmtDuration(r.moving_time_s), avg_pace: fmtPace(r.avg_pace_s_per_km), avg_hr: r.avg_hr,
+    z1_sec: Math.round(r.z1_sec||0), z2_sec: Math.round(r.z2_sec||0), z3_sec: Math.round(r.z3_sec||0), z4_sec: Math.round(r.z4_sec||0), z5_sec: Math.round(r.z5_sec||0),
+    gcb: r.gcb_left_pct!=null ? `${(+r.gcb_left_pct).toFixed(1)}L/${(100-(+r.gcb_left_pct)).toFixed(1)}R` : null };
+}
+function readableHardSession(r){
+  return { date: r.run_date, title: r.strava_activity_name || r.activity_name || null, zone4_5_time: fmtDuration(Math.round(r.hard_zone_sec||0)),
+    avg_hr: r.avg_hr, max_hr: r.max_hr, duration: fmtDuration(r.moving_time_s), km: (+r.km).toFixed(1) };
+}
+function readableEfficiencyRun(r){ return { date: r.run_date, avg_pace: fmtPace(r.avg_pace_s_per_km), avg_hr: r.avg_hr, pace_per_hr_beat: +r.pace_per_hr_beat.toFixed(3) }; }
+
+document.getElementById('copyPromptBtn').onclick = () => {
+  const ins = state.insights.map(i=>`- ${i.title}: ${i.stat} — ${i.text}`).join('\n');
+  const recency = state.summary.recencyText || { days:null, text:'unknown' };
+
+  const rec = state.recovery;
+  const recoveryLine = rec
+    ? `Today's recovery signals: resting HR ${rec.today_resting_hr ?? '—'} bpm (7-day avg ${rec.avg7_resting_hr ?? '—'}), HRV last night ${rec.today_hrv ?? '—'}ms vs 7-day avg ${rec.avg7_hrv ?? '—'}ms (status: ${rec.today_hrv_status ?? 'unknown'}), sleep score ${rec.today_sleep_score ?? '—'}/100 on ${fmtDecimalHours(rec.today_sleep_duration_s)} hours (7-day avg ${rec.avg7_sleep_score ?? '—'}/${fmtDecimalHours(rec.avg7_sleep_duration_s)} hours), body battery at wake ${rec.today_bb_wake ?? '—'}% (7-day avg ${rec.avg7_bb_wake ?? '—'}%).`
+    : 'No recovery data available.';
+
+  const race = state.nextRace;
+  const raceLine = (race && race.race_name && state.summary.race && state.summary.race.exists)
+    ? `Upcoming goal: ${race.race_name} on ${new Date(race.race_date).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})} (${race.distance_km} km${race.race_type ? ', '+race.race_type : ''}) in ${race.location || race.country || 'an unspecified location'} — ${race.weeks_remaining} weeks away. Training phase: ${state.summary.race.phaseLabel}. Target time: ${fmtRaceTime(race.target_time_s)}.`
+    : 'No upcoming race currently set — provide general 80/20 guidance rather than race-specific periodization.';
+
+  const outlierLines = (state.summary.outlierWeeks || [])
+    .map(w => `Note: week of ${w.week_start} (${w.low_pct.toFixed(1)}% low / ${w.moderate_pct.toFixed(1)}% moderate) deviates >20 percentage points from the 8-week average (${w.avgLowPct}%) — treat with caution, possible data sync issue.`)
+    .join('\n');
+
+  const gcb = state.summary.gcb;
+  const gcbLine = gcb
+    ? `8-week average ground contact balance: ${gcb.left.toFixed(1)}L / ${gcb.right.toFixed(1)}R. This week's individual run values are listed below — flag any run outside 47/53 as worth monitoring.`
+    : '8-week average ground contact balance: not enough data.';
+
+  const intensity = state.summary.intensity;
+  const intensityLine = intensity
+    ? `Intensity Distribution: ${intensity.lowPct.toFixed(0)}/${intensity.modPct.toFixed(0)}/${intensity.highPct.toFixed(0)} — Low = Zone 1+2, Moderate = Zone 3, High = Zone 4+5 (time-in-zone, not average HR) — ${intensity.comparisonText}.`
+    : 'Intensity Distribution: no data available.';
+
+  const weekRunsReadable = state.weekDetail.map(readableRun);
+  const hardSessionsReadable = state.hard.map(readableHardSession);
+  const efficiencyReadable = state.efficiency.map(readableEfficiencyRun);
+
+  const prompt = `You are a running coach analyzing my 80/20 heart-rate training data from MyHealthDB.
+
+My HR zone cutoffs: low ≤ ${state.cutpoints.low_upper_bpm} bpm, high ≥ ${state.cutpoints.high_lower_bpm} bpm. "Hard" sessions are defined as >${HARD_ZONE_MIN_SEC/60} min of time-in-zone in Zone 4 or 5.
+
+${recoveryLine}
+
+${raceLine}
+${outlierLines ? '\n' + outlierLines + '\n' : ''}
+${gcbLine}
+
+${intensityLine}
+
+Days since my last hard session: ${recency.days ?? 'unknown'} (${recency.text}).
+
+Computed insights:
+${ins}
+
+This window's individual runs (readable units): ${JSON.stringify(weekRunsReadable)}
+
+Weekly HR distribution (%, time-in-zone based): ${JSON.stringify(state.weeklyPct)}
+
+Per-run easy-run efficiency (readable units, pace_per_hr_beat lower=better): ${JSON.stringify(efficiencyReadable)}
+
+Hard sessions in range (readable units): ${JSON.stringify(hardSessionsReadable)}
+
+Based on this data, give me:
+1. A verdict on whether my training intensity distribution matches the 80/20 model, with specific numbers.
+2. Whether my aerobic efficiency trend (per-run) suggests I should increase, hold, or reduce easy-run volume.
+3. Given it's been ${recency.days ?? 'an unknown number of'} days since my last hard session, and my current recovery metrics, should today be an easy run or am I ready for intensity?
+4. How my current training phase (if a race is set) should shape the next 2 weeks of sessions.
+5. Any concerns from the ground contact balance figures (baseline and today's runs — should stay close to 50/50).`;
+
+  navigator.clipboard.writeText(prompt).then(()=>showToast('Prompt copied — paste into your AI of choice'));
+};
+
+window.addEventListener('resize', () => {
+  ['weekDonutChart','stackChart','driftChart','efficiencyChart'].forEach(id=>{
+    const inst = echarts.getInstanceByDom(document.getElementById(id));
+    if(inst) inst.resize();
+  });
+});
+
+loadAll();
+</script>
+</body>
+</html>
