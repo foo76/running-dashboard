@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#020c18;color:#ecf4ff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{width:min(100%,520px);margin:auto;min-height:100vh}.topbar{position:sticky;top:0;z-index:20;background:#041121;border-bottom:1px solid #0d2941;padding:16px 18px}.brand{display:flex;align-items:center;gap:10px;font-size:21px;font-weight:800;letter-spacing:.065em}.brand-mark{width:19px;height:19px;border-radius:4px;background:#00a3e0}main{padding:12px}.card{background:#041828;border:1px solid #0d2a42;border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 8px 24px rgba(0,0,0,.54)}.hero-card,.readiness-card,.forecast-card{background:radial-gradient(125% 135% at 90% 0,#0a2947 0,#041828 60%)}.header{display:flex;align-items:center;justify-content:space-between;gap:10px}.eyebrow{font-size:11px;letter-spacing:.13em;text-transform:uppercase;font-weight:750;color:#91a9cc}.tip{position:relative;display:grid;place-items:center;width:22px;height:22px;border:1px solid #577291;border-radius:50%;font-size:13px;color:#c8d8ee;cursor:help;flex:none}.tip:after{content:attr(data-tip);position:absolute;right:0;bottom:29px;width:255px;padding:9px;border:1px solid #174560;border-radius:9px;background:#061e35;color:#eff7ff;font-size:11px;line-height:1.35;box-shadow:0 9px 24px rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:opacity .14s;z-index:50}.tip:hover:after,.tip:active:after{opacity:1}.error{display:none;margin-bottom:12px;padding:10px;border:1px solid #742c31;border-radius:10px;background:#2b1114;color:#ffc5c5;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word}.muted{font-size:11px;color:#8099ba}.pill{display:inline-block;border-radius:999px;padding:5px 10px;color:#041221;font-size:11px;font-weight:850;letter-spacing:.075em;text-transform:uppercase}
+.readiness-top{display:flex;align-items:center;gap:16px;margin-top:13px}.readiness-ring{position:relative;width:104px;height:104px;flex:none}.readiness-ring svg{width:100%;height:100%;transform:rotate(-90deg)}.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}.ready-score{font-size:35px;line-height:1;font-weight:850;font-variant-numeric:tabular-nums}.ready-max{font-size:12px;color:#8ba3c4;margin-top:4px}.ready-info{min-width:0;flex:1}.ready-feedback{margin:9px 0 0;color:#d7e4f6;font-size:14px;line-height:1.35}.source{margin-top:8px;font-size:10px;color:#6983a5;line-height:1.35}.factor-list{margin-top:14px;padding-top:10px;border-top:1px solid #0d2940}.factor{min-height:27px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#b1c4df;font-size:13px}.factor-name{display:flex;align-items:center;gap:8px}.factor-dot{width:9px;height:9px;border-radius:50%;flex:none}.factor-value{font-weight:750;color:#edf5ff;font-size:12px;white-space:nowrap;text-align:right}
+.stimulus-row{display:flex;align-items:end;justify-content:space-between;gap:8px;margin-top:14px}.distance{display:flex;align-items:baseline;gap:8px}.distance-number{font-size:56px;line-height:.88;font-weight:850;font-variant-numeric:tabular-nums}.distance-unit{font-size:18px;font-weight:700;color:#8ca3c2}.session-pill{border-radius:999px;padding:8px 12px;font-size:11px;font-weight:850;letter-spacing:.07em;color:#041221;text-transform:uppercase;white-space:nowrap}.subline{margin-top:10px;color:#9db2cf;font-size:13px}.caution{display:none;margin-left:6px;color:#ffe58c;background:#2c2409;border:1px solid #71590c;border-radius:999px;padding:3px 7px;font-size:10px}.caution.show{display:inline-block}.controls{display:flex;align-items:center;gap:8px;margin-top:16px}.step{width:36px;height:36px;border:1px solid #1b476e;background:#061b30;border-radius:50%;color:#e9f4ff;font-size:21px;cursor:pointer}.presets{display:flex;flex:1;padding:3px;border:1px solid #102e48;border-radius:999px;background:#061a2e}.preset{flex:1;text-align:center;border-radius:999px;color:#8ca4c6;font-size:13px;font-weight:750;padding:7px 2px;cursor:pointer}.preset.active{background:#00a3e0;color:#031323}.stimulus-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}.tile{position:relative;min-height:118px;border:1px solid #10304c;border-radius:14px;background:#061b30;padding:12px}.tile-label{text-transform:uppercase;letter-spacing:.11em;color:#91a8c8;font-size:10px;font-weight:750}.te-wrap{position:relative;width:100%;max-width:155px;margin:3px auto 0}.te-wrap svg{display:block;width:100%;height:auto}.te-center{position:absolute;bottom:0;left:0;right:0;text-align:center}.te-number{font-size:26px;font-weight:850;color:#fff;line-height:1}.te-label{font-size:10px;color:#93aac8;text-transform:uppercase;letter-spacing:.1em}.hr-track{position:relative;height:11px;border-radius:99px;margin:25px 0 13px;overflow:hidden;background:#132840}.hr-window{position:absolute;top:-2px;bottom:-2px;border:2px solid #fff;border-radius:99px;box-shadow:0 0 8px #fff8}.hr-value{text-align:center;font-size:17px;font-weight:850}.hr-name{text-align:center;color:#92a9c8;font-size:11px;margin-top:4px}.reason{margin:15px 0 0;padding-top:12px;border-top:1px solid #0d2940;color:#afc4df;font-size:12px;line-height:1.45}.reason strong{color:#edf5ff}
+.forecast-legend{display:flex;flex-wrap:wrap;gap:8px 12px;margin:11px 0 5px;color:#b2c5dc;font-size:10px}.forecast-legend span{display:flex;align-items:center;gap:5px}.swatch{display:inline-block;width:14px;height:3px;border-radius:4px}.swatch.blue{background:#3b82d0}.swatch.orange{background:#e77348}.swatch.gray{background:#a1a7b0}.swatch.target{width:14px;height:9px;background:rgba(159,196,233,.55)}.forecast-wrap{height:235px;position:relative}.forecast-copy{margin:8px 0 0;color:#adc3dd;font-size:12px;line-height:1.4}
+.date-range{margin-top:5px;color:#c3d4e9;font-size:15px;font-weight:750}.zone-history{display:flex;height:45px;overflow:hidden;border-radius:10px;background:#132840;margin-top:12px}.zone-history span{flex:1}.axis{display:flex;justify-content:space-between;margin-top:7px;color:#829aba;font-size:10px}.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #0d2940}.legend div{display:flex;align-items:center;gap:4px;color:#afc3dc;font-size:10px}.legend i{width:8px;height:8px;border-radius:50%}.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.mini{padding:10px;border-radius:12px;background:#071d33;border:1px solid #123653}.mini label{display:block;color:#90a9c9;font-size:10px}.mini strong{display:block;margin-top:5px;font-size:20px;color:#fff}.signal{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding:9px 10px;border:1px solid #123653;border-radius:11px;background:#071d33;font-size:12px}.chart-wrap{position:relative;height:175px;margin-top:5px}.session{margin-top:7px;padding:9px;border:1px solid #123653;border-radius:11px;background:#071d33}.session-head,.session-meta{display:flex;justify-content:space-between;gap:8px;font-size:11px}.session-name{font-weight:750;color:#edf5ff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.tag{display:inline-block;margin-right:5px;padding:2px 5px;border-radius:999px;background:#0e385a;color:#c4e8ff;font-size:9px}.session-meta{margin-top:5px;color:#92a9c8}.zone-bar{display:flex;height:7px;border-radius:5px;overflow:hidden;background:#132840;margin-top:7px}.zone-bar span{height:100%}.export{width:100%;padding:11px;border-radius:999px;border:1px solid #174866;background:#061c31;color:#d8eaff;font-weight:750;font-size:12px;cursor:pointer}.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);padding:9px 13px;border:1px solid #1d587e;background:#08223a;color:#eff7ff;border-radius:999px;font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s}.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<script>
+window.addEventListener('error', function(e){
+  try{
+    var box=document.getElementById('error');
+    if(box){ box.textContent='Script error: '+e.message+(e.filename?' ('+e.filename.split('/').pop()+':'+e.lineno+')':''); box.style.display='block'; }
+  }catch(_ignore){}
+});
+window.addEventListener('unhandledrejection', function(e){
+  try{
+    var box=document.getElementById('error');
+    if(box){ box.textContent='Unhandled promise rejection: '+(e.reason && e.reason.message ? e.reason.message : e.reason); box.style.display='block'; }
+  }catch(_ignore){}
+});
+</script>
+<div class="shell"><header class="topbar"><div class="brand"><span class="brand-mark"></span>RUN PLANNER</div></header><main>
+<div id="error" class="error"></div>
+<section class="card readiness-card"><div class="header"><div class="eyebrow">Training Readiness</div><span class="tip" data-tip="Direct Garmin source. The score, level, recovery time, factor percentages, and feedback are read from training_readiness_daily. No local readiness calculation is used.">i</span></div><div class="readiness-top"><div class="readiness-ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#132840" stroke-width="10"/><circle id="ready-ring" cx="50" cy="50" r="42" fill="none" stroke="#2e9e46" stroke-width="10" stroke-linecap="round"/></svg><div class="ring-center"><strong id="ready-score" class="ready-score">-</strong><span class="ready-max">/ 100</span></div></div><div class="ready-info"><span id="ready-level" class="pill">-</span><p id="ready-feedback" class="ready-feedback">Loading Garmin readiness...</p><div id="ready-source" class="source"></div></div></div><div id="ready-factors" class="factor-list"></div><p class="readiness-note">Garmin canonical daily reading from training_readiness_daily. This is now the source of truth for readiness decisions.</p></section>
+<section class="card hero-card"><div class="header"><div class="eyebrow">Next Actionable Stimulus</div><span class="tip" data-tip="Purpose first, distance second. The engine first decides rest, recovery, steady aerobic, or tempo based on Garmin Readiness, Recovery Time, HRV factor, current acute load, load target, and recent hard-session sequence. The chosen distance is a cap, never a reason to force higher intensity.">i</span></div><div class="stimulus-row"><div class="distance"><strong id="target-km" class="distance-number">-</strong><span class="distance-unit">km</span></div><span id="session-type" class="session-pill">Loading</span></div><div class="subline">Est. <span id="est-min">-</span> min - Pace <span id="target-pace">-</span><span id="caution" class="caution">Readiness caution</span></div><div class="controls"><button id="minus" class="step">-</button><div class="presets"><span class="preset" data-km="8">8K</span><span class="preset active" data-km="10">10K</span><span class="preset" data-km="12">12K</span><span class="preset" data-km="16">16K</span></div><button id="plus" class="step">+</button></div><div class="stimulus-grid"><div class="tile"><span class="tip" style="position:absolute;right:8px;top:8px" data-tip="Aerobic Training Effect: about 1 to 2 recovery, 2 to 3 maintenance, 3 to 4 fitness-building, and over 4 very demanding.">i</span><div class="te-wrap"><svg viewBox="0 0 120 66"><path d="M10,60 A50,50 0 0 1 110,60" fill="none" stroke="#132840" stroke-width="12" stroke-linecap="round"/><path id="te-arc" d="M10,60 A50,50 0 0 1 110,60" fill="none" stroke="#00e676" stroke-width="12" stroke-linecap="round"/></svg><div class="te-center"><div id="te-value" class="te-number">-</div><div class="te-label">TE target</div></div></div></div><div class="tile"><div class="tile-label">Target HR</div><div id="hr-track" class="hr-track"><span id="hr-window" class="hr-window"></span></div><div id="hr-value" class="hr-value">- bpm</div><div id="hr-name" class="hr-name">-</div></div></div><p id="reason" class="reason"></p></section>
+<section class="card forecast-card"><div class="header"><div class="eyebrow">Load Forecast</div><span class="tip" data-tip="Blue: recorded estimated rolling 7-day load. Orange: forecast if the recommended session is completed. Grey: chronic baseline. Blue shading: preferred 0.9 to 1.2 times chronic planning corridor. Current load uses the direct Garmin acute_load where available; forecast remains an estimate because Garmin recency weighting is proprietary.">i</span></div><div class="forecast-legend"><span><i class="swatch blue"></i>7-day rolling load</span><span><i class="swatch orange"></i>With session</span><span><i class="swatch gray"></i>Chronic baseline</span><span><i class="swatch target"></i>Target zone</span></div><div class="forecast-wrap"><canvas id="forecast-chart"></canvas></div><p id="forecast-copy" class="forecast-copy"></p></section>
+<section class="card"><div class="header"><div class="eyebrow">Last 4 Weeks Training Zone</div><span class="tip" data-tip="Uses direct Garmin training_status_daily where available (last 7 days); older days are a Run Planner estimate from rolling load ratio and VO2 trend, marked with an asterisk in the AI export.">i</span></div><div id="zone-range" class="date-range">-</div><div id="zone-history" class="zone-history"></div><div id="zone-axis" class="axis"></div><div id="zone-legend" class="legend"></div></section>
+<section class="card"><div class="header"><div class="eyebrow">Training Status</div><span id="status-pill" class="pill">-</span></div><p id="status-copy" class="ready-feedback">Loading...</p><div class="status-grid"><div class="mini"><label>Garmin acute load</label><strong id="acute">-</strong></div><div class="mini"><label>Planning ratio</label><strong id="ratio">-</strong></div><div class="mini"><label>VO2 max est.</label><strong id="vo2">-</strong></div></div><div class="signal"><span>VO2 max trend</span><strong id="vo2-trend">-</strong></div><div class="signal"><span>Latest HRV status</span><strong id="hrv">-</strong></div></section>
+<section class="card"><div class="header"><div class="eyebrow">Daily EPOC Load</div></div><div class="chart-wrap"><canvas id="load-chart"></canvas></div></section>
+<section class="card"><div class="header"><div class="eyebrow">Recent Sessions</div></div><div id="sessions"></div><div id="session-footer" class="source"></div></section>
+<section class="card"><div class="header"><div class="eyebrow">AI Coaching Export</div><span class="tip" data-tip="Copies a full analysis brief: Garmin training status, readiness factors, VO2 and HRV trends, HR zones, 28-day zone history, weekly volume splits, recent sessions, and active injuries. It asks the AI to derive its own recommendation rather than dictating one.">i</span></div><button id="copy" class="export">Copy key info for AI prompt</button></section>
+</main></div><div id="toast" class="toast"></div>
+<script>
+(function(){
+'use strict';
+function err(s){var e=document.getElementById('error');e.textContent=s;e.style.display='block'}
+
+if(typeof dayjs==='undefined'){err('dayjs failed to load from CDN. Check internet access / ad blockers, then reload.');return}
+if(typeof Chart==='undefined'){err('Chart.js failed to load from CDN. Check internet access / ad blockers, then reload.');return}
+if(typeof dayjs_plugin_relativeTime!=='undefined'){dayjs.extend(dayjs_plugin_relativeTime)}
+
+var SUPABASE_URL='https://krgbagjignvbnrgybdos.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4';
+
+async function rest(path, params){
+  var url=SUPABASE_URL+'/rest/v1/'+path+'?'+params;
+  var res=await fetch(url,{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,Accept:'application/json'}});
+  if(!res.ok){
+    var body='';
+    try{body=await res.text()}catch(_ignore){}
+    throw new Error('Supabase request failed ('+res.status+' '+path+'): '+body.slice(0,200));
+  }
+  return res.json();
+}
+
+var runs=[],zones=null,readiness=null,chosenKm=10,forecastChart=null,loadChart=null,wellness=[],trainingStatusRows=[],statusByDate={},injuries=[];
+var SC={Productive:'#2e9e46',Maintaining:'#f2b705',Recovery:'#4a90e2',Unproductive:'#f57c00',Strained:'#e6483c','No Status':'#5a6b82',NoStatus:'#5a6b82'};
+var RC={High:'#4a90e2',Moderate:'#2e9e46',Low:'#f57c00',Prime:'#ab47bc',Poor:'#e6483c'};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function code(v){return v?String(v).replaceAll('_',' '):''}
+function pace(v){if(!v)return'-';return Math.floor(v/60)+':'+String(Math.round(v%60)).padStart(2,'0')+'/km'}
+function mins(v){if(v==null)return'n/a';v=Math.max(0,Math.round(Number(v)));if(!v)return'Recovered';return Math.floor(v/60)?Math.floor(v/60)+'h '+v%60+'m':v+'m'}
+function pop(s){var t=document.getElementById('toast');t.textContent=s;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
+
+async function fetchAll(){
+  var since=dayjs().subtract(28,'day').startOf('day').toISOString();
+  var sinceDate=dayjs().subtract(28,'day').format('YYYY-MM-DD');
+  var results=await Promise.allSettled([
+    rest('activities','select=start_time_utc,activity_name,strava_activity_name,distance_m,avg_pace_s_per_km,avg_hr,max_hr,training_load,aerobic_te,anaerobic_te,vo2max_estimate,raw_garmin_json&activity_type=eq.running&start_time_utc=gte.'+encodeURIComponent(since)+'&order=start_time_utc.asc'),
+    rest('hr_zones','select=*&order=snapshot_date.desc,updated_at.desc&limit=1'),
+    rest('wellness_daily','select=date,sleep_score,hrv_status,hrv_weekly_avg,stress_avg,body_battery_high&date=gte.'+sinceDate+'&order=date.asc'),
+    rest('training_readiness_daily','select=*&order=date.desc,reading_timestamp_utc.desc&limit=1'),
+    rest('training_status_daily','select=date,training_status_feedback,acute_load,chronic_load,acwr_ratio,acwr_status,vo2max_running&date=gte.'+sinceDate+'&order=date.desc'),
+    rest('injuries','select=injury_name,body_part,severity,impact_on_training,is_active&is_active=eq.true')
+  ]);
+  var failures=results.filter(function(r){return r.status==='rejected'}).map(function(r){return r.reason&&r.reason.message?r.reason.message:String(r.reason)});
+  if(failures.length)err(failures.join(' | '));
+  var activitiesRaw=results[0].status==='fulfilled'?results[0].value:[];
+  var zonesRaw=results[1].status==='fulfilled'?results[1].value:[];
+  var wellnessRaw=results[2].status==='fulfilled'?results[2].value:[];
+  var readinessRaw=results[3].status==='fulfilled'?results[3].value:[];
+  var statusRaw=results[4].status==='fulfilled'?results[4].value:[];
+  var injuriesRaw=results[5].status==='fulfilled'?results[5].value:[];
+  runs=(activitiesRaw||[]).map(function(x){
+    var raw=x.raw_garmin_json||{};
+    return{time:x.start_time_utc,date:dayjs(x.start_time_utc).format('YYYY-MM-DD'),name:x.strava_activity_name||x.activity_name||'Untitled run',km:Number(x.distance_m||0)/1000,pace:Number(x.avg_pace_s_per_km||0),hr:Number(x.avg_hr||0),maxHr:Number(x.max_hr||0),load:Number(x.training_load||0),ae:Number(x.aerobic_te||0),an:Number(x.anaerobic_te||0),vo2:x.vo2max_estimate==null?null:Number(x.vo2max_estimate),z:[Number(raw.hrTimeInZone_1)||0,Number(raw.hrTimeInZone_2)||0,Number(raw.hrTimeInZone_3)||0,Number(raw.hrTimeInZone_4)||0,Number(raw.hrTimeInZone_5)||0]};
+  });
+  zones=zonesRaw&&zonesRaw[0];
+  wellness=wellnessRaw||[];
+  readiness=readinessRaw&&readinessRaw[0];
+  trainingStatusRows=statusRaw||[];
+  statusByDate={};
+  trainingStatusRows.forEach(function(row){statusByDate[row.date]=row});
+  injuries=injuriesRaw||[];
+}
+
+function days(){var a=[];for(var i=27;i>=0;i--)a.push(dayjs().subtract(i,'day').format('YYYY-MM-DD'));return a}
+function metrics(){
+  var d=days();
+  var l=d.map(function(x){return runs.filter(function(r){return r.date===x}).reduce(function(s,r){return s+r.load},0)});
+  var total=l.reduce(function(s,v){return s+v},0);
+  var acute=l.slice(-7).reduce(function(s,v){return s+v},0);
+  var chronic=total/28*7;
+  return{d:d,l:l,total:total,acute:acute,chronic:chronic,ratio:chronic?acute/chronic:1};
+}
+function vtrend(){
+  var a=runs.filter(function(r){return r.vo2!=null});
+  if(a.length<2)return{dir:'flat',delta:0,last:a.length?a[a.length-1].vo2:null};
+  var k=Math.max(1,Math.floor(a.length*.65)),old=a.slice(0,k),recent=a.slice(k);
+  var o=old.reduce(function(s,r){return s+r.vo2},0)/old.length;
+  var n=recent.reduce(function(s,r){return s+r.vo2},0)/recent.length;
+  var delta=n-o;
+  return{dir:delta>.15?'up':delta<-.15?'down':'flat',delta:delta,last:a[a.length-1].vo2};
+}
+function status(m,t){
+  var trend=t&&t.dir?t:{dir:'flat'};
+  var ratio=Number(m&&m.ratio);
+  if(!Number.isFinite(ratio))return'NoStatus';
+  if(ratio>1.9)return trend.dir==='up'?'Productive':'Strained';
+  if(ratio<.8)return'Recovery';
+  if(trend.dir==='up')return'Productive';
+  if(trend.dir==='down')return'Unproductive';
+  return'Maintaining';
+}
+function tone(p,f){f=String(f||'').toUpperCase();return f==='POOR'||f==='NONE'||Number(p)<40?'#ff5252':f==='MODERATE'||Number(p)<70?'#ffb300':'#00e676'}
+
+function renderReady(){
+  var r=readiness;
+  var score=document.getElementById('ready-score'),lev=document.getElementById('ready-level'),fb=document.getElementById('ready-feedback'),ring=document.getElementById('ready-ring'),list=document.getElementById('ready-factors');
+  if(!r){score.textContent='-';lev.textContent='No data';lev.style.background='#5a6b82';fb.textContent='No Garmin Training Readiness record returned. Check the error banner above for the exact Supabase response.';return}
+  var level=String(r.readiness_level||'MODERATE').toLowerCase(),cap=level.charAt(0).toUpperCase()+level.slice(1),col=RC[cap]||'#5a6b82',n=Number(r.readiness_score);
+  score.textContent=n;lev.textContent=cap;lev.style.background=col;
+  fb.textContent=code(r.feedback_short)+(r.feedback_long?' - '+code(r.feedback_long):'');
+  var c=2*Math.PI*42;
+  ring.setAttribute('stroke-dasharray',c);ring.setAttribute('stroke-dashoffset',c-c*n/100);ring.setAttribute('stroke',col);
+  document.getElementById('ready-source').textContent='Garmin canonical reading: '+r.date+' - '+dayjs(r.reading_timestamp_utc).format('HH:mm')+' UTC - '+code(r.input_context);
+  var f=[
+    ['Sleep score',r.sleep_score+' - '+code(r.sleep_score_factor_feedback),r.sleep_score_factor_pct,r.sleep_score_factor_feedback],
+    ['Recovery time',mins(r.recovery_time_minutes)+' - '+code(r.recovery_time_factor_feedback),r.recovery_time_factor_pct,r.recovery_time_factor_feedback],
+    ['HRV status',(r.hrv_weekly_avg==null?'n/a':Math.round(r.hrv_weekly_avg)+'ms')+' - '+code(r.hrv_factor_feedback),r.hrv_factor_pct,r.hrv_factor_feedback],
+    ['Acute load',(r.acute_load==null?'n/a':Math.round(r.acute_load))+' - '+code(r.acwr_factor_feedback),r.acwr_factor_pct,r.acwr_factor_feedback],
+    ['Recent sleep scores',(r.sleep_history_factor_pct==null?'n/a':Math.round(r.sleep_history_factor_pct)+'%')+' - '+code(r.sleep_history_factor_feedback),r.sleep_history_factor_pct,r.sleep_history_factor_feedback],
+    ['Recent stress',(r.stress_history_factor_pct==null?'n/a':Math.round(r.stress_history_factor_pct)+'%')+' - '+code(r.stress_history_factor_feedback),r.stress_history_factor_pct,r.stress_history_factor_feedback]
+  ];
+  list.innerHTML='';
+  f.forEach(function(x){
+    var el=document.createElement('div');el.className='factor';
+    el.innerHTML='<span class="factor-name"><i class="factor-dot" style="background:'+tone(x[2],x[3])+'"></i>'+x[0]+'</span><strong class="factor-value">'+x[1]+'</strong>';
+    list.appendChild(el);
+  });
+}
+
+function latestRunDays(){return runs.length?Math.max(0,dayjs().startOf('day').diff(dayjs(runs[runs.length-1].time).startOf('day'),'day')):99}
+function hard3(){var s=dayjs().subtract(3,'day');return runs.filter(function(r){return dayjs(r.time).isAfter(s)&&(r.ae>=3.5||r.load>=125||r.an>=1)}).length}
+function rate(easy){
+  var ceil=zones?(zones.z2_upper_upper||zones.z3_lower||zones.z2_upper):0;
+  var a=runs.filter(function(r){return r.km>=3&&r.load>0&&(!easy||r.hr<=ceil)});
+  return a.length?a.reduce(function(s,r){return s+r.load/r.km},0)/a.length:(easy?7:9);
+}
+function hrGradient(){
+  if(!zones)return'#132840';
+  var mi=zones.z1_lower,ma=zones.z5_upper,sp=ma-mi;
+  var segs=[[zones.z1_lower,zones.z1_upper,'#607d9c'],[zones.z2_lower,zones.z2_upper,'#00e676'],[zones.z2_upper_lower||zones.z2_upper,zones.z2_upper_upper||zones.z3_lower,'#4dd0e1'],[zones.z3_lower,zones.z3_upper,'#ffb300'],[zones.z4_lower,zones.z4_upper,'#ff5252'],[zones.z5_lower,zones.z5_upper,'#ab47bc']];
+  var a=[];
+  segs.forEach(function(x){a.push(x[2]+' '+((x[0]-mi)/sp*100).toFixed(1)+'%',x[2]+' '+((x[1]-mi)/sp*100).toFixed(1)+'%')});
+  return'linear-gradient(90deg,'+a.join(',')+')';
+}
+
+function plan(m){
+  var current=readiness&&readiness.acute_load!=null?Number(readiness.acute_load):m.acute;
+  var chronic=m.chronic||current;
+  var lo=chronic*.9,mid=chronic*1.05,hi=chronic*1.2;
+  var daysSince=latestRunDays(),hard=hard3();
+  var latest=runs.length?runs[runs.length-1]:null;
+  var rl=readiness?String(readiness.readiness_level||'').toUpperCase():'UNKNOWN';
+  var hrv=readiness?String(readiness.hrv_factor_feedback||'').toUpperCase():'UNKNOWN';
+  var rt=readiness&&readiness.recovery_time_minutes!=null?Number(readiness.recovery_time_minutes):null;
+  var mode='steady',why='Load is inside the preferred corridor and readiness supports a normal aerobic session.';
+  if(rl==='LOW'||Number(readiness&&readiness.readiness_score)<35||(rt!=null&&rt>=720)||((hrv==='POOR'||hrv==='NONE')&&daysSince<=1)||(current>hi*1.04&&hard>=2)){
+    mode='rest';why='Rest is preferred because Garmin readiness or recovery signals indicate insufficient capacity for another run.';
+  }else if(latest&&daysSince<=1&&(latest.km>=16||latest.ae>=3.4||latest.load>=110)){
+    mode='recovery';why='The latest run was long or high-aerobic, so the next stimulus should absorb that work rather than repeat quality.';
+  }else if(rl==='MODERATE'&&rt!=null&&rt>120){
+    mode='recovery';why='Garmin Readiness is Moderate with more than two hours of Recovery Time remaining.';
+  }else if(current<lo){
+    mode=(rl==='HIGH'&&hrv==='GOOD'&&hard===0)?'tempo':'steady';
+    why=mode==='tempo'?'Load is below corridor with High readiness, good HRV, and no recent hard session.':'Load is below corridor, but steady aerobic work is safer than forcing quality.';
+  }else if(current>=hi){
+    mode='recovery';why='Current acute load is already at or above the desired corridor.';
+  }
+  var tm=mode==='rest'?{name:'Rest / optional walk',te:0,low:null,high:null,zone:'Rest day',pace:0,floor:0,ceil:15}
+    :mode==='recovery'?{name:'Easy Recovery',te:2,low:zones&&zones.z1_lower,high:zones&&zones.z2_lower,zone:'Z1 to low Z2',pace:330,floor:35,ceil:70}
+    :mode==='tempo'?{name:'Controlled Tempo Build',te:3.3,low:zones&&(zones.z2_upper_lower||zones.z2_upper),high:zones&&zones.z3_upper,zone:'Z2+ with brief Z3',pace:278,floor:80,ceil:120}
+    :{name:'Steady Aerobic',te:2.8,low:zones&&zones.z2_lower,high:zones&&zones.z2_upper,zone:'Z2 aerobic',pace:298,floor:60,ceil:95};
+  var add=clamp(mid-current,tm.floor,tm.ceil);
+  var recommended=mode==='rest'?0:clamp(add/rate(mode==='recovery'),4,18);
+  var finalKm=mode==='rest'?0:Math.min(recommended,chosenKm);
+  var load=mode==='rest'?0:finalKm*rate(mode==='recovery');
+  var project=current+load;
+  var out=Object.assign({},tm,{current:current,chronic:chronic,lo:lo,hi:hi,why:why,recommended:recommended,km:finalKm,load:load,project:project,pratio:chronic?project/chronic:1,minutes:Math.round(finalKm*tm.pace/60),cap:chosenKm,mode:mode});
+  return out;
+}
+
+function renderPlan(m){
+  var p=plan(m);
+  var color=p.mode==='rest'?'#8a9bb1':p.mode==='recovery'?'#26a69a':p.mode==='tempo'?'#ffb300':'#00e676';
+  document.getElementById('target-km').textContent=p.km.toFixed(1);
+  document.getElementById('session-type').textContent=p.name;
+  document.getElementById('session-type').style.background=color;
+  document.getElementById('est-min').textContent=p.mode==='rest'?'0':p.minutes;
+  document.getElementById('target-pace').textContent=p.mode==='rest'?'Rest day':pace(p.pace);
+  document.getElementById('caution').classList.toggle('show',p.mode==='rest');
+  var arc=document.getElementById('te-arc'),len=arc.getTotalLength();
+  arc.setAttribute('stroke-dasharray',len);arc.setAttribute('stroke-dashoffset',len-len*p.te/5);arc.setAttribute('stroke',color);
+  document.getElementById('te-value').textContent=p.te.toFixed(1);
+  var track=document.getElementById('hr-track'),win=document.getElementById('hr-window');
+  track.style.background=hrGradient();
+  if(zones&&p.low&&p.high){
+    var base=zones.z1_lower,span=zones.z5_upper-base;
+    win.style.left=((p.low-base)/span*100)+'%';win.style.width=Math.max(2,(p.high-p.low)/span*100)+'%';win.style.display='block';
+    document.getElementById('hr-value').textContent=p.low+'-'+p.high+' bpm';
+    document.getElementById('hr-name').textContent=p.zone;
+  }else{
+    win.style.display='none';
+    document.getElementById('hr-value').textContent=p.mode==='rest'?'Rest':'No HR data';
+    document.getElementById('hr-name').textContent=p.zone;
+  }
+  var capText=p.km<p.recommended-.2?' The selected distance cap limits the session from an ideal '+p.recommended.toFixed(1)+' km to '+p.km.toFixed(1)+' km; intensity is not raised to compensate.':'';
+  document.getElementById('reason').innerHTML='<strong>Why:</strong> '+p.why+' Current Garmin acute load is '+Math.round(p.current)+' EPOC. Estimated session contribution: '+Math.round(p.load)+' EPOC. Forecast: '+Math.round(p.project)+' EPOC, or '+p.pratio.toFixed(2)+'x chronic baseline.'+capText;
+  return p;
+}
+
+function renderForecast(m,p){
+  if(forecastChart)forecastChart.destroy();
+  var rolling=m.l.map(function(_,i){return m.l.slice(Math.max(0,i-6),i+1).reduce(function(s,v){return s+v},0)});
+  var points=rolling.map(function(v,i){return{x:i,y:v}});
+  var next={x:points.length,y:p.project};
+  var labels=m.d.map(function(d){return dayjs(d).format('D MMM')});
+  labels.push('Next run');
+  var vals=rolling.concat([p.project,p.lo,p.hi,p.chronic]);
+  var min=Math.max(0,Math.floor(Math.min.apply(null,vals)/25)*25-25);
+  var max=Math.ceil(Math.max.apply(null,vals)/25)*25+25;
+  forecastChart=new Chart(document.getElementById('forecast-chart'),{
+    type:'line',
+    data:{datasets:[
+      {data:[{x:0,y:p.lo},{x:points.length,y:p.lo}],borderColor:'transparent',backgroundColor:'transparent',pointRadius:0,fill:false},
+      {data:[{x:0,y:p.hi},{x:points.length,y:p.hi}],borderColor:'transparent',backgroundColor:'rgba(159,196,233,.32)',pointRadius:0,fill:'-1'},
+      {data:[{x:0,y:p.chronic},{x:points.length,y:p.chronic}],borderColor:'#a1a7b0',borderDash:[6,5],borderWidth:1.3,pointRadius:0},
+      {data:points,borderColor:'#3b82d0',borderWidth:2.5,pointRadius:3.5,pointBackgroundColor:'#5a9de2',tension:.25},
+      {data:[points[points.length-1],next],borderColor:'#e77348',borderDash:[8,6],borderWidth:2.5,pointRadius:function(c){return c.dataIndex===1?7:0},pointBackgroundColor:'#e77348',pointBorderColor:'#ffd1bd',pointBorderWidth:1.5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,parsing:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:function(i){return labels[Math.round(i[0].parsed.x)]||''},label:function(i){return Math.round(i.parsed.y)+' EPOC'}}}},
+      scales:{x:{type:'linear',min:0,max:points.length,grid:{display:false},border:{display:false},ticks:{color:'#8fa7ca',font:{size:9},maxTicksLimit:7,callback:function(v){return labels[Math.round(v)]||''}}},
+        y:{min:min,max:max,grid:{color:'rgba(145,168,200,.24)'},border:{display:false},ticks:{color:'#8fa7ca',font:{size:9}},title:{display:true,text:'EPOC load',color:'#8fa7ca',font:{size:10}}}}
+    }
+  });
+  var text=p.pratio>=.9&&p.pratio<=1.2?'Forecast lands inside the preferred 0.9 to 1.2x planning corridor.':p.pratio<.9?'Forecast remains below the preferred corridor. This is acceptable when recovery is the priority; do not force intensity today.':'Forecast exceeds the preferred corridor. Reduce volume, keep intensity easy, or rest.';
+  document.getElementById('forecast-copy').textContent=text;
+}
+
+function renderHistory(m,t){
+  var b=document.getElementById('zone-history'),a=document.getElementById('zone-axis'),l=document.getElementById('zone-legend');
+  b.innerHTML='';a.innerHTML='';l.innerHTML='';
+  m.d.forEach(function(d,i){
+    var direct=statusByDate[d];
+    var s;
+    if(direct){
+      var base=String(direct.training_status_feedback||'').split('_')[0].toUpperCase();
+      var map={PRODUCTIVE:'Productive',MAINTAINING:'Maintaining',RECOVERY:'Recovery',UNPRODUCTIVE:'Unproductive',STRAINED:'Strained',OVERREACHING:'Strained',PEAKING:'Productive',DETRAINING:'Unproductive'};
+      s=map[base]||'Maintaining';
+    }else{
+      var r=m.l.slice(Math.max(0,i-6),i+1).reduce(function(s2,v){return s2+v},0)/(m.chronic||1);
+      s=i<6?'NoStatus':status({ratio:r},t);
+    }
+    var x=document.createElement('span');x.style.background=SC[s]||SC.NoStatus;x.title=d+' '+s;b.appendChild(x);
+  });
+  document.getElementById('zone-range').textContent=dayjs(m.d[0]).format('D MMM')+' - '+dayjs(m.d[27]).format('D MMM');
+  [0,5,10,15,20,27].forEach(function(i){var x=document.createElement('span');x.textContent=dayjs(m.d[i]).format('DD/MM');a.appendChild(x)});
+  Object.keys(SC).forEach(function(k){if(k==='NoStatus')return;var x=document.createElement('div');x.innerHTML='<i style="background:'+SC[k]+'"></i>'+k;l.appendChild(x)});
+}
+
+function renderStatus(m,t){
+  var latestRow=trainingStatusRows.length?trainingStatusRows[0]:null;
+  var s;
+  if(latestRow){
+    var base=String(latestRow.training_status_feedback||'').split('_')[0].toUpperCase();
+    var map={PRODUCTIVE:'Productive',MAINTAINING:'Maintaining',RECOVERY:'Recovery',UNPRODUCTIVE:'Unproductive',STRAINED:'Strained',OVERREACHING:'Strained',PEAKING:'Productive',DETRAINING:'Unproductive'};
+    s=map[base]||'Maintaining';
+  }else{
+    s=status(m,t);
+  }
+  var p=document.getElementById('status-pill');
+  p.textContent=s;p.style.background=SC[s]||SC.NoStatus;
+  document.getElementById('status-copy').textContent=s==='Productive'?'Load and VO2 trend indicate improving fitness.':s==='Maintaining'?'Load is sustaining current fitness.':s==='Recovery'?'Load is below normal and recovery is the priority.':s==='Unproductive'?'Load is present but VO2 trend is declining.':'Load is very high versus the baseline.';
+  var direct=latestRow&&latestRow.acute_load!=null?Number(latestRow.acute_load):(readiness&&readiness.acute_load!=null?Number(readiness.acute_load):m.acute);
+  document.getElementById('acute').textContent=Math.round(direct);
+  var ratioDirect=latestRow&&latestRow.acwr_ratio!=null?Number(latestRow.acwr_ratio):m.ratio;
+  document.getElementById('ratio').textContent=ratioDirect.toFixed(2);
+  document.getElementById('vo2').textContent=t.last?t.last.toFixed(1):'-';
+  document.getElementById('vo2-trend').textContent=t.dir.toUpperCase()+' '+(t.delta>=0?'+':'')+t.delta.toFixed(1);
+  var h=wellness.length?String(wellness[wellness.length-1].hrv_status||'unknown').toUpperCase():'UNKNOWN';
+  document.getElementById('hrv').textContent=h;
+}
+
+function renderLoad(m){
+  if(loadChart)loadChart.destroy();
+  loadChart=new Chart(document.getElementById('load-chart'),{
+    type:'bar',
+    data:{labels:m.d.map(function(d){return dayjs(d).format('D MMM')}),datasets:[{data:m.l,backgroundColor:m.l.map(function(_,i){return i>=21?'#00a3e0':'#265170'}),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8098b9',font:{size:9},maxRotation:0,autoSkip:true},grid:{display:false}},y:{ticks:{color:'#8098b9',font:{size:9}},grid:{color:'#12304a'}}}}
+  });
+}
+
+function bar(r){
+  var total=r.z.reduce(function(s,v){return s+v},0);
+  if(!total)return'';
+  return'<div class="zone-bar">'+r.z.map(function(v,i){return v?'<span style="width:'+(v/total*100).toFixed(2)+'%;background:'+['#607d9c','#00e676','#ffb300','#ff5252','#ab47bc'][i]+'"></span>':''}).join('')+'</div>';
+}
+
+function renderSessions(m){
+  var box=document.getElementById('sessions');box.innerHTML='';
+  runs.slice().reverse().slice(0,6).forEach(function(r){
+    var x=document.createElement('div');x.className='session';
+    x.innerHTML='<div class="session-head"><span class="session-name"><b class="tag">STRAVA</b>'+r.name+'</span><span class="muted">'+dayjs(r.time).fromNow()+'</span></div><div class="session-meta"><span>'+r.km.toFixed(1)+' km - '+pace(r.pace)+'</span><span>HR '+r.hr+' - TE '+r.ae.toFixed(1)+'</span></div>'+bar(r);
+    box.appendChild(x);
+  });
+  document.getElementById('session-footer').textContent='4-week EPOC: '+Math.round(m.total)+' - Last 7 days: '+Math.round(m.acute)+' - baseline: '+Math.round(m.chronic);
+}
+
+var GARMIN_STATUS_LABELS={PRODUCTIVE:'Productive',MAINTAINING:'Maintaining',RECOVERY:'Recovery',UNPRODUCTIVE:'Unproductive',STRAINED:'Strained',OVERREACHING:'Overreaching',PEAKING:'Peaking',DETRAINING:'Detraining',NOSTATUS:'No Status'};
+
+function statusLabelFromFeedback(fb){
+  if(!fb)return null;
+  var base=String(fb).split('_')[0].toUpperCase();
+  return GARMIN_STATUS_LABELS[base]||(base.charAt(0)+base.slice(1).toLowerCase());
+}
+
+function compressZoneHistory(m,t){
+  var out=[];
+  m.d.forEach(function(d,i){
+    var direct=statusByDate[d];
+    var label;
+    var estimated=false;
+    if(direct){
+      label=statusLabelFromFeedback(direct.training_status_feedback);
+    }else{
+      var r=m.l.slice(Math.max(0,i-6),i+1).reduce(function(s,v){return s+v},0)/(m.chronic||1);
+      label=i<6?'No Status':status({ratio:r},t);
+      estimated=true;
+    }
+    out.push({date:d,label:label,estimated:estimated});
+  });
+  var ranges=[];
+  out.forEach(function(o){
+    var last=ranges[ranges.length-1];
+    if(last&&last.label===o.label&&last.estimated===o.estimated){
+      last.end=o.date;last.count++;
+    }else{
+      ranges.push({start:o.date,end:o.date,label:o.label,estimated:o.estimated,count:1});
+    }
+  });
+  return ranges.map(function(r){
+    var startTxt=dayjs(r.start).format('D MMM');
+    var endTxt=dayjs(r.end).format('D MMM');
+    var span=r.start===r.end?startTxt:(startTxt+'-'+endTxt);
+    return span+': '+r.label+' ('+r.count+'d)'+(r.estimated?'*':'');
+  }).join(' | ');
+}
+
+function weeklyBlocks(m){
+  var blocks=[];
+  for(var w=0;w<4;w++){
+    var slice=m.d.slice(w*7,w*7+7);
+    var startD=slice[0],endD=slice[slice.length-1];
+    var weekRuns=runs.filter(function(r){return r.date>=startD&&r.date<=endD});
+    var km=weekRuns.reduce(function(s,r){return s+r.km},0);
+    var load=weekRuns.reduce(function(s,r){return s+r.load},0);
+    var ae=weekRuns.reduce(function(s,r){return s+r.ae},0);
+    var an=weekRuns.reduce(function(s,r){return s+r.an},0);
+    blocks.push('Week '+(w+1)+' ('+dayjs(startD).format('D MMM')+'-'+dayjs(endD).format('D MMM')+'): '+km.toFixed(1)+'km, '+weekRuns.length+' runs, load '+Math.round(load)+', aerobicTE '+ae.toFixed(1)+', anaerobicTE '+an.toFixed(1));
+  }
+  return blocks.join('\n');
+}
+
+function hrvTrendText(){
+  if(!wellness.length)return'n/a';
+  var recent7=wellness.slice(-7).map(function(w){return Number(w.hrv_weekly_avg)}).filter(function(v){return Number.isFinite(v)});
+  var prior7=wellness.slice(-14,-7).map(function(w){return Number(w.hrv_weekly_avg)}).filter(function(v){return Number.isFinite(v)});
+  var latest=wellness[wellness.length-1];
+  var recentAvg=recent7.length?recent7.reduce(function(s,v){return s+v},0)/recent7.length:null;
+  var priorAvg=prior7.length?prior7.reduce(function(s,v){return s+v},0)/prior7.length:null;
+  return{
+    latestLabel:String(latest.hrv_status||'unknown').toLowerCase(),
+    recentAvg:recentAvg,
+    priorAvg:priorAvg
+  };
+}
+
+function vo2TrendText(t){
+  if(t.last==null)return'n/a';
+  var dirWord=t.dir==='up'?'up':t.dir==='down'?'down':'flat';
+  return dirWord+' (delta '+(t.delta>=0?'+':'')+t.delta.toFixed(2)+', recent 7d avg vs prior baseline reflected in VO2 trend samples)';
+}
+
+function readinessFactorsLine(r){
+  if(!r)return'n/a';
+  var sleepHist=wellness.slice(-3).map(function(w){return w.sleep_score}).filter(function(v){return v!=null});
+  var stressHist=wellness.slice(-3).map(function(w){return w.stress_avg}).filter(function(v){return v!=null});
+  var stressAvg=stressHist.length?Math.round(stressHist.reduce(function(s,v){return s+v},0)/stressHist.length):null;
+  var sleepAvg=sleepHist.length?Math.round(sleepHist.reduce(function(s,v){return s+v},0)/sleepHist.length):null;
+  var latestWellness=wellness.length?wellness[wellness.length-1]:null;
+  var bb=latestWellness&&latestWellness.body_battery_high!=null?latestWellness.body_battery_high:null;
+  return 'Sleep last night: '+(r.sleep_score!=null?r.sleep_score:'n/a')
+    +' | HRV status: '+(r.hrv_weekly_avg!=null?Math.round(r.hrv_weekly_avg)+'ms':'n/a')+' - '+code(r.hrv_factor_feedback)
+    +' | Overnight recovery (Body Battery): '+(bb!=null?bb:'n/a')
+    +' | Sleep history (3 nights): '+(sleepHist.length?sleepHist.join('/')+' (avg '+sleepAvg+')':'n/a')
+    +' | Stress history (3 days): '+(stressAvg!=null?'Avg '+stressAvg:'n/a')
+    +' | Acute load balance: '+(r.acute_load!=null?Math.round(r.acute_load)+' EPOC':'n/a');
+}
+
+function exportText(m,t,p){
+  var r=readiness;
+  var latestStatusRow=trainingStatusRows.length?trainingStatusRows[0]:null;
+  var officialStatusLabel=latestStatusRow?statusLabelFromFeedback(latestStatusRow.training_status_feedback):status(m,t);
+  var acwrRatio=latestStatusRow&&latestStatusRow.acwr_ratio!=null?Number(latestStatusRow.acwr_ratio):m.ratio;
+  var acwrStatus=latestStatusRow?latestStatusRow.acwr_status:(acwrRatio>=0.8&&acwrRatio<=1.4?'OPTIMAL':(acwrRatio<0.8?'LOW':'HIGH'));
+  var acuteDirect=latestStatusRow&&latestStatusRow.acute_load!=null?Number(latestStatusRow.acute_load):(readiness&&readiness.acute_load!=null?Number(readiness.acute_load):m.acute);
+  var chronicDirect=latestStatusRow&&latestStatusRow.chronic_load!=null?Number(latestStatusRow.chronic_load):m.chronic;
+  var hrvT=hrvTrendText();
+  var activeInj=injuries.filter(function(i){return i.is_active});
+
+  var task='YOUR TASK\nUsing the provided data, recommend the next running stimulus (the very next run) that is most likely to maintain the Garmin Productive training status over the coming week, given: the goal of staying Productive without tipping into Overreaching or Unproductive; the current load ratio and 7-day load trajectory; the Training Readiness score and HRV status; the recent mix of sessions.';
+
+  var outputFormat='OUTPUT FORMAT\n1. Interpretation (2-4 sentences): summarise the current Training Status, load ratio position, VO2 max trend, and any readiness or HRV flags.\n2. Recommended Next Session: Type; Duration or distance; Target HR zone (use the provided 6-band zones); Target pace range (optional); Target aerobic/anaerobic TE; Estimated EPOC/load and how it fits the 7-day load to keep the ratio around 0.9 to 1.2.\n3. Rationale Tied to Garmin Metrics (3-5 bullets): how this keeps the 7-day load in the optimal band; how it supports the VO2 max trend; how it respects Readiness and HRV; how it fits the recent session mix.\n4. Guardrails / When to Adjust: 2-3 if-then rules (for example: if HRV worsens or Readiness drops below a threshold, shift to a shorter or easier Z1-Z2 run; if the next 2 days already include a hard session, make this one strictly recovery; if fatigue is felt despite good metrics, reduce planned load by roughly 20-30%).';
+
+  var constraints='CONSTRAINTS\nDo not recommend sessions likely to push the 7-day load ratio above roughly 1.3 to 1.4 unless the data clearly show ample recovery capacity. Do not ignore HRV or Readiness flags. Keep recommendations specific and actionable. Use the provided HR zones and EPOC/load numbers; do not invent new zone boundaries.';
+
+  var currentStatus='### CURRENT TRAINING STATUS\n- Status: '+String(officialStatusLabel).toUpperCase()+(latestStatusRow?'':' (locally estimated - no direct Garmin training_status_daily record)')
+    +'\n- Load ratio (ACWR): '+acwrRatio.toFixed(2)+' ['+(acwrStatus?acwrStatus.charAt(0)+acwrStatus.slice(1).toLowerCase():'n/a')+'] (optimal band: 0.8-1.4)'
+    +'\n- 7-day acute load: '+Math.round(acuteDirect)+' EPOC'
+    +'\n- 28-day chronic baseline (weekly-equivalent): '+Math.round(chronicDirect)+' EPOC'
+    +'\n- 4-week cumulative load: '+Math.round(m.total)+' EPOC';
+
+  var readinessBlock='### TRAINING READINESS\n- Score: '+(r?r.readiness_score:'n/a')+'/100 ('+(r?code(r.readiness_level):'n/a')+')'
+    +'\n- Factors: '+readinessFactorsLine(r);
+
+  var vo2Block='### VO2 MAX\n- Latest estimate: '+(t.last?t.last.toFixed(1):'n/a')+' ml/kg/min'
+    +'\n- Trend: '+vo2TrendText(t);
+
+  var hrvBlock='### HRV STATUS\n- Latest: '+(typeof hrvT==='object'?hrvT.latestLabel:hrvT)+' (raw label: '+(typeof hrvT==='object'?hrvT.latestLabel:'n/a')+')'
+    +'\n- 7d avg vs baseline: '+(typeof hrvT==='object'&&hrvT.recentAvg!=null?hrvT.recentAvg.toFixed(0)+'ms':'n/a')+' vs '+(typeof hrvT==='object'&&hrvT.priorAvg!=null?hrvT.priorAvg.toFixed(0)+'ms':'n/a');
+
+  var zonesBlock='### HEART RATE ZONES\n'+(zones?'Z1 '+zones.z1_lower+'-'+zones.z1_upper+'bpm, Z2 '+zones.z2_lower+'-'+zones.z2_upper+'bpm, Z2+ '+(zones.z2_upper_lower||zones.z2_upper)+'-'+(zones.z2_upper_upper||zones.z3_lower)+'bpm, Z3 '+zones.z3_lower+'-'+zones.z3_upper+'bpm, Z4 '+zones.z4_lower+'-'+zones.z4_upper+'bpm, Z5 '+zones.z5_lower+'-'+zones.z5_upper+'bpm (Max HR '+zones.max_hr+', Resting HR '+zones.resting_hr+')':'n/a');
+
+  var zoneHistoryBlock='### 28-DAY TRAINING ZONE HISTORY\n'+compressZoneHistory(m,t)+'\n(* = no direct Garmin training-status record for that day; locally estimated from load ratio and VO2 trend)';
+
+  var loadCurveBlock='### 28-DAY DAILY EPOC LOAD CURVE\n'+m.d.map(function(d,i){return dayjs(d).format('DD/MM')+':'+Math.round(m.l[i])}).join(', ');
+
+  var weeklyBlock='### WEEKLY VOLUME & AEROBIC/ANAEROBIC SPLIT\n'+weeklyBlocks(m);
+
+  var sessionsBlock='### RECENT SESSIONS\n'+runs.slice().reverse().slice(0,8).map(function(x){
+    var zoneTxt=' | Zone time(s): Z1 '+x.z[0]+', Z2 '+x.z[1]+', Z3 '+x.z[2]+', Z4 '+x.z[3]+', Z5 '+x.z[4];
+    return '* '+dayjs(x.time).format('D MMM')+' [STRAVA] "'+x.name+'": '+x.km.toFixed(1)+'km @ '+pace(x.pace)+', avgHR '+x.hr+', maxHR '+x.maxHr+', aerobicTE '+x.ae.toFixed(1)+', anaerobicTE '+x.an.toFixed(1)+', load '+Math.round(x.load)+zoneTxt;
+  }).join('\n');
+
+  var injuryBlock='### ACTIVE INJURIES\n'+(activeInj.length?activeInj.map(function(i){return '- '+i.injury_name+' ('+(i.body_part||'unspecified')+', severity '+(i.severity||'n/a')+', impact: '+(i.impact_on_training||'n/a')+')'}).join('\n'):'None currently logged as active.');
+
+  var referenceBlock='### THIS TOOL\'S OWN RECOMMENDATION (reference only, not a directive)\n- Target Session: '+p.km.toFixed(1)+' km ('+p.name+')'
+    +'\n- Target HR: '+p.zone+(p.low&&p.high?' ('+p.low+'-'+p.high+' bpm)':'')
+    +'\n- Target Aerobic TE: ~'+p.te.toFixed(1)
+    +'\n- Note: this is one heuristic estimate for context only; use the full dataset above to form an independent recommendation.';
+
+  return [task,outputFormat,constraints,'NOW ANALYSE THE FOLLOWING DATA AND PROVIDE THE RECOMMENDATION IN THE FORMAT ABOVE:',currentStatus,readinessBlock,vo2Block,hrvBlock,zonesBlock,zoneHistoryBlock,loadCurveBlock,weeklyBlock,sessionsBlock,injuryBlock,referenceBlock].join('\n\n');
+}
+
+async function render(){
+  try{
+    await fetchAll();
+    var m=metrics(),t=vtrend();
+    renderReady();
+    var p=renderPlan(m);
+    renderForecast(m,p);
+    renderHistory(m,t);
+    renderStatus(m,t);
+    renderLoad(m);
+    renderSessions(m);
+    document.getElementById('copy').onclick=async function(){
+      try{await navigator.clipboard.writeText(exportText(m,t,p));pop('Copied full AI coaching brief.')}
+      catch(e){err('Clipboard copy failed: '+e.message)}
+    };
+  }catch(e){
+    err('Unexpected page error: '+e.message);
+  }
+}
+
+function setKm(v){
+  chosenKm=Math.max(3,Math.round(v*10)/10);
+  document.querySelectorAll('.preset').forEach(function(x){x.classList.toggle('active',Number(x.dataset.km)===chosenKm)});
+  var m=metrics(),p=renderPlan(m);
+  renderForecast(m,p);
+}
+document.getElementById('minus').onclick=function(){setKm(chosenKm-1)};
+document.getElementById('plus').onclick=function(){setKm(chosenKm+1)};
+document.querySelectorAll('.preset').forEach(function(x){x.onclick=function(){setKm(Number(x.dataset.km))}});
+
+render();
+})();
+</script>
+</body></html>
