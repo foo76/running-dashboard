@@ -110,7 +110,7 @@ export async function fetchVolumeData(sinceDateStr) {
   const cols = 'activity_name,strava_activity_name,start_time_utc,distance_m,activity_type';
   const types = 'running,trail_running,treadmill_running';
   const url = `${SB_URL}/rest/v1/activities?select=${cols}&start_time_utc=gte.${sinceDateStr}T00:00:00Z&activity_type=in.(${types})&order=start_time_utc.asc&limit=2000`;
-  const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+  const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token } });
   if (!res.ok) throw new Error(`Activities API error ${res.status}`);
   const data = await res.json();
   return data.map(row => ({
@@ -244,7 +244,7 @@ export async function fetchYoYData() {
   let all = [], offset = 0, limit = 1000;
   while (true) {
     const url = `${SB_URL}/rest/v1/activities?select=${cols}&activity_type=in.(${types})&order=start_time_utc.asc&limit=${limit}&offset=${offset}`;
-    const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+    const res = await fetch(url, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token } });
     if (!res.ok) throw new Error('YoY Fetch Error');
     const data = await res.json();
     all = all.concat(data);
@@ -324,3 +324,4 @@ export async function fetchAndRenderYoY() {
     }, 150);
   });
 })();
+
