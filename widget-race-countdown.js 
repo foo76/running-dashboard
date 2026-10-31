@@ -6,7 +6,7 @@
  * Tapping the card opens race_url.
  */
 
-import { SB_URL, SB_KEY } from './shared.js';
+import { SB_URL } from './shared.js';
 
 // ─── Fetch next upcoming race ──────────────────────────────────────────────────
 export async function fetchNextRace() {
@@ -17,9 +17,11 @@ export async function fetchNextRace() {
     `&finish_time_s=is.null` +
     `&order=race_date.asc` +
     `&limit=1`;
+
   const res = await fetch(url, {
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    headers: await window.MyFitnessAuth.headers()
   });
+
   if (!res.ok) throw new Error(`Race fetch failed (${res.status})`);
   const data = await res.json();
   return data?.[0] ?? null;
@@ -27,14 +29,14 @@ export async function fetchNextRace() {
 
 // ─── Days until ────────────────────────────────────────────────────────────────
 function daysUntil(dateStr) {
-  const now   = new Date();
+  const now = new Date();
   now.setHours(0, 0, 0, 0);
   const target = new Date(dateStr);
   target.setHours(0, 0, 0, 0);
   return Math.round((target - now) / 86400000);
 }
 
-// ─── Format date  e.g. "27 Sep 2025" ──────────────────────────────────────────
+// ─── Format date, e.g. "27 Sep 2025" ───────────────────────────────────────────
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric'
@@ -62,11 +64,10 @@ export function renderRaceCountdown(containerId, race) {
 
   // Colour accent shifts with urgency
   const accent =
-    days <= 7  ? '#f97316' :   // imminent — orange
-    days <= 30 ? '#facc15' :   // soon — amber
-                 '#00E5A0';    // comfortable — green
+    days <= 7  ? '#f97316' :
+    days <= 30 ? '#facc15' :
+                 '#00E5A0';
 
-  // Days label
   const daysLabel = days === 0 ? 'TODAY' : days === 1 ? '1 day to go' : `${days} days to go`;
 
   container.innerHTML = `
@@ -75,28 +76,21 @@ export function renderRaceCountdown(containerId, race) {
       role="${race.race_url ? 'link' : 'region'}"
       aria-label="Countdown to ${race.race_name}">
 
-      <!-- Top row: eyebrow + distance badge -->
       <div class="rc-top-row">
         <span class="rc-eyebrow">Next Race</span>
         ${distKm ? `<span class="rc-dist-badge">${distKm} km</span>` : ''}
       </div>
 
-      <!-- Race name -->
       <h2 class="rc-name">${race.race_name}</h2>
-
-      <!-- Location -->
       ${loc ? `<p class="rc-loc">📍 ${loc}</p>` : ''}
 
-      <!-- Countdown block -->
       <div class="rc-countdown-wrap">
         <div class="rc-days-number" style="color:${accent}">${days}</div>
         <div class="rc-days-label">days</div>
       </div>
 
-      <!-- Divider -->
       <div class="rc-divider"></div>
 
-      <!-- Footer row: date + tap hint -->
       <div class="rc-footer-row">
         <span class="rc-date">${dateStr}</span>
         ${race.race_url
@@ -104,17 +98,14 @@ export function renderRaceCountdown(containerId, race) {
           : ''}
       </div>
 
-      <!-- Progress bar: visual urgency 0–100 days scale -->
       <div class="rc-progress-track">
         <div class="rc-progress-fill"
           style="width:${Math.max(2, Math.min(100, 100 - (days / 180) * 100))}%;
                  background:${accent};"></div>
       </div>
-
     </div>
   `;
 
-  // Tap → open race URL
   if (race.race_url) {
     document.getElementById('rc-card-inner')
       .addEventListener('click', () => {
