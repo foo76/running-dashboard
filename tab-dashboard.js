@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY, localDate } from './shared.js';
+import { SB_URL, localDate } from './shared.js';
 import { renderGctDial } from './widget-gct.js';
 
 // ─── Race countdown helpers (inlined — avoids broken external module) ──────────
@@ -12,7 +12,7 @@ async function fetchNextRace() {
     `&race_date=gte.${today}` +
     `&order=race_date.asc&limit=1`;
   let res = await fetch(url, {
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    headers: await window.MyFitnessAuth.headers()
   });
   if (!res.ok) throw new Error(`Race fetch failed (${res.status})`);
   let data = await res.json();
@@ -23,7 +23,7 @@ async function fetchNextRace() {
       `?select=race_name,race_date,distance_m,race_url,location,country` +
       `&order=race_date.desc&limit=1`;
     res = await fetch(url, {
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+      headers: await window.MyFitnessAuth.headers()
     });
     if (!res.ok) throw new Error(`Race fetch failed (${res.status})`);
     data = await res.json();
@@ -138,7 +138,7 @@ async function fetchGCT(days) {
   const url = `${SB_URL}/rest/v1/gct_balance_view?select=run_date,gct_left_pct` +
     `&run_date=gte.${since}&order=run_date.asc`;
   const res = await fetch(url, {
-    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+    headers: await window.MyFitnessAuth.headers()
   });
   if (!res.ok) throw new Error(`GCT fetch failed (${res.status})`);
   return res.json();
