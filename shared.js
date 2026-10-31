@@ -1,5 +1,5 @@
 export const SB_URL = "https://krgbagjignvbnrgybdos.supabase.co";
-export const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
+export const SB_KEY = "sb_publishable_qNga415U3UwHSNF1DF5RiQ_5MzhIFFq";
 
 export const TABS = ['dashboard', 'wellness', 'readiness', 'volume', 'load'];
 export const TAB_SUBTITLES = {
@@ -74,8 +74,12 @@ export async function fetchData() {
   const url = SB_URL + '/rest/v1/wellness_daily?select=' + cols + '&date=gte.' + since + '&order=date.asc';
 
   const res = await fetch(url, {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    headers: {
+      apikey: SB_KEY,
+      Authorization: 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token
+    }
   });
+
   if (!res.ok) throw new Error('API error: ' + res.status);
   return await res.json();
 }
@@ -104,10 +108,7 @@ export async function switchTab(tab) {
 
   if (isSame) return;
 
-  // ── Lazy render each tab ────────────────────────────────
-  // Guards use state flags so each tab only fetches/renders once.
-  // Tabs that need allRows check it exists before rendering.
-
+  // Lazy render each tab.
   if (tab === 'dashboard' && !state.dashboardRendered) {
     state.dashboardRendered = true;
     const { renderDashboard } = await import('./tab-dashboard.js');
