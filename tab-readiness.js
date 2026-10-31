@@ -102,10 +102,10 @@ async function fetchData() {
 
   const [wellnessRes, exertionRes] = await Promise.all([
     fetch(SB_URL + '/rest/v1/wellness_daily?select=date,hrv_last_night,hrv_weekly_avg,resting_hr,hrv_status,sleep_score&date=gte.' + sinceStr + '&order=date.asc&limit=100', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token }
     }),
     fetch(SB_URL + '/rest/v1/daily_exertion?select=date,total_moving_s,mean_hr,peak_hr,hrr_pct,weighted_exertion_s,resting_hr,max_hr_zone,hr_reserve&date=gte.' + sinceStr + '&order=date.asc&limit=100', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + (await window.MyFitnessAuth.requireSession()).access_token }
     })
   ]);
 
@@ -538,3 +538,4 @@ export async function renderReadiness() {
       `<div style="padding:24px;text-align:center;color:#F87171;font-size:.8rem;">⚠️ ${e.message}</div>`;
   }
 }
+
