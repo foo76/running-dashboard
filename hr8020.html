@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>80/20 HR Training Dashboard · MyHealthDB</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script src="./auth.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   :root{
@@ -246,7 +247,6 @@
 
 <script>
 const SUPABASE_URL = "https://krgbagjignvbnrgybdos.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtyZ2JhZ2ppZ252Ym5yZ3liZG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyNjAxNjUsImV4cCI6MjA5MzgzNjE2NX0.CJLjj8rxGrgftTHoNNMSCurHEqqzh6j1aljWWJUCfg4";
 
 const ZONE_HEX = { z1:'#5b8bd0', z2:'#3fb950', z3:'#e3b341', z4:'#f0883e', z5:'#f85149' };
 const CHART_FONT = '-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
@@ -327,7 +327,8 @@ function arrowFor(today, avg, higherIsBetter){
 }
 
 async function loadAll(){
-  if(!state.sb) state.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  await window.MyFitnessAuth.requireSession();
+  if(!state.sb) state.sb = window.MyFitnessAuth.client;
   const statusLine = document.getElementById('statusLine');
   state.daysBack = +document.getElementById('rangeSelect').value;
   statusLine.textContent = 'Loading from MyHealthDB…';
@@ -484,7 +485,8 @@ function renderWeeklyDistTable(){
 }
 
 async function loadWeek(){
-  if(!state.sb) state.sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  await window.MyFitnessAuth.requireSession();
+  if(!state.sb) state.sb = window.MyFitnessAuth.client;
   document.getElementById('weekNextBtn').disabled = state.weekMode === 'rolling';
   document.getElementById('weekPrevBtn').disabled = state.weekMode === 'calendar' && state.weekOffset <= -4;
   try {
@@ -860,3 +862,4 @@ loadAll();
 </script>
 </body>
 </html>
+
