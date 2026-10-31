@@ -13,8 +13,8 @@ const PERIODS = [
 ];
 const DEFAULT_DAYS = 60;
 
-const C_CTL = '#00D4C8';   // cyan  — Fitness
-const C_ATL = '#8B5CF6';   // purple — Fatigue
+const C_CTL = '#00D4C8';
+const C_ATL = '#8B5CF6';
 
 let ls = {
   activeDays: DEFAULT_DAYS,
@@ -23,7 +23,6 @@ let ls = {
   fetched: false
 };
 
-// ── Styles ────────────────────────────────────────────────
 function injectStyles() {
   if (document.getElementById('load-tab-styles')) return;
   const s = document.createElement('style');
@@ -37,7 +36,6 @@ function injectStyles() {
       background: var(--bg, #0D1117);
       min-height: 100%;
     }
-
     .load-title {
       font-size: 1.5rem;
       font-weight: 800;
@@ -45,8 +43,6 @@ function injectStyles() {
       margin-bottom: 18px;
       letter-spacing: -.01em;
     }
-
-    /* Period tabs */
     .load-period-wrap {
       display: flex;
       background: #161D2E;
@@ -77,8 +73,6 @@ function injectStyles() {
       color: #CDD8EE;
       box-shadow: 0 2px 10px rgba(0,0,0,.5);
     }
-
-    /* Big metric row */
     .load-metrics-row {
       display: flex;
       gap: 36px;
@@ -120,8 +114,6 @@ function injectStyles() {
     }
     .load-metric-prev .arrow-down { color: #FF5A6E; }
     .load-metric-prev .arrow-up   { color: #00D4C8; }
-
-    /* Chart */
     .load-chart-outer {
       width: 100%;
       height: 280px;
@@ -135,8 +127,6 @@ function injectStyles() {
       display: block;
       overflow: visible;
     }
-
-    /* Legend */
     .load-legend {
       display: flex;
       flex-direction: column;
@@ -157,8 +147,6 @@ function injectStyles() {
       border-radius: 50%;
       flex-shrink: 0;
     }
-
-    /* Tooltip */
     .load-tt {
       position: fixed;
       pointer-events: none;
@@ -195,7 +183,6 @@ function injectStyles() {
   document.head.appendChild(s);
 }
 
-// ── Fetch ─────────────────────────────────────────────────
 async function fetchAllActivities() {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 2);
@@ -203,14 +190,15 @@ async function fetchAllActivities() {
   const url = SB_URL + '/rest/v1/activities?select=' + cols +
     '&start_time_utc=gte.' + since.toISOString() +
     '&order=start_time_utc.asc&limit=2000';
+
   const res = await fetch(url, {
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    headers: await window.MyFitnessAuth.headers()
   });
+
   if (!res.ok) throw new Error('Load fetch error ' + res.status);
   return res.json();
 }
 
-// ── Build PMC ─────────────────────────────────────────────
 function buildPMC(activities) {
   if (!activities.length) return [];
   const byDate = {};
@@ -237,7 +225,6 @@ function buildPMC(activities) {
   return series;
 }
 
-// ── Draw ──────────────────────────────────────────────────
 function drawPMC(series, days) {
   const outer = document.getElementById('load-chart-outer');
   if (!outer) return;
@@ -265,7 +252,10 @@ function drawPMC(series, days) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  Object.assign(svg.style, { position:'absolute', inset:'0', width:'100%', height:'100%', display:'block', overflow:'visible' });
+  Object.assign(svg.style, {
+    position: 'absolute', inset: '0', width: '100%',
+    height: '100%', display: 'block', overflow: 'visible'
+  });
 
   const mk = (tag, attrs, txt) => {
     const el = document.createElementNS(ns, tag);
@@ -274,41 +264,49 @@ function drawPMC(series, days) {
     return el;
   };
 
-  // Defs — gradients under each line
   const defs = mk('defs');
-
   const ctlGrad = mk('linearGradient', { id:'g-ctl', x1:0, y1:0, x2:0, y2:1 });
-  ctlGrad.appendChild(mk('stop', { offset:'0%',   'stop-color':C_CTL, 'stop-opacity':'0.22' }));
+  ctlGrad.appendChild(mk('stop', { offset:'0%', 'stop-color':C_CTL, 'stop-opacity':'0.22' }));
   ctlGrad.appendChild(mk('stop', { offset:'100%', 'stop-color':C_CTL, 'stop-opacity':'0' }));
   defs.appendChild(ctlGrad);
 
   const atlGrad = mk('linearGradient', { id:'g-atl', x1:0, y1:0, x2:0, y2:1 });
-  atlGrad.appendChild(mk('stop', { offset:'0%',   'stop-color':C_ATL, 'stop-opacity':'0.22' }));
+  atlGrad.appendChild(mk('stop', { offset:'0%', 'stop-color':C_ATL, 'stop-opacity':'0.22' }));
   atlGrad.appendChild(mk('stop', { offset:'100%', 'stop-color':C_ATL, 'stop-opacity':'0' }));
   defs.appendChild(atlGrad);
   svg.appendChild(defs);
 
-  // Y grid lines + labels
   const step = (maxV - minV) > 100 ? 20 : (maxV - minV) > 60 ? 10 : 5;
   for (let t = Math.ceil(minV / step) * step; t <= maxV; t += step) {
     const y = yS(t);
     if (y < pT || y > H - pB) continue;
-    svg.appendChild(mk('line', { x1:pL, x2:W-pR, y1:y, y2:y, stroke:'rgba(255,255,255,0.06)', 'stroke-width':'1' }));
-    svg.appendChild(mk('text', { x:pL-6, y:y+3.5, 'font-size':'9', fill:'rgba(255,255,255,0.3)', 'text-anchor':'end' }, Math.round(t)));
+    svg.appendChild(mk('line', {
+      x1:pL, x2:W-pR, y1:y, y2:y,
+      stroke:'rgba(255,255,255,0.06)', 'stroke-width':'1'
+    }));
+    svg.appendChild(mk('text', {
+      x:pL-6, y:y+3.5, 'font-size':'9',
+      fill:'rgba(255,255,255,0.3)', 'text-anchor':'end'
+    }, Math.round(t)));
   }
 
-  // X dashed grid + date labels — one per period tick
   const every = n > 300 ? 60 : n > 120 ? 30 : n > 60 ? 14 : 7;
   vis.forEach((d, i) => {
     if (i % every !== 0 && i !== n - 1) return;
     const x = xS(i);
-    svg.appendChild(mk('line', { x1:x, x2:x, y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.06)', 'stroke-dasharray':'3,3', 'stroke-width':'1' }));
+    svg.appendChild(mk('line', {
+      x1:x, x2:x, y1:pT, y2:H-pB,
+      stroke:'rgba(255,255,255,0.06)',
+      'stroke-dasharray':'3,3', 'stroke-width':'1'
+    }));
     const dt = new Date(d.date + 'T12:00:00');
     const lbl = dt.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
-    svg.appendChild(mk('text', { x, y:H-pB+14, 'text-anchor':'middle', 'font-size':'9', fill:'rgba(255,255,255,0.3)' }, lbl));
+    svg.appendChild(mk('text', {
+      x, y:H-pB+14, 'text-anchor':'middle',
+      'font-size':'9', fill:'rgba(255,255,255,0.3)'
+    }, lbl));
   });
 
-  // Area fills (under each line)
   const areaPath = (key, gradId) => {
     const pts = vis.map((d, i) => xS(i) + ',' + yS(d[key])).join(' ');
     const bot = H - pB;
@@ -320,7 +318,6 @@ function drawPMC(series, days) {
   svg.appendChild(areaPath('ctl', 'g-ctl'));
   svg.appendChild(areaPath('atl', 'g-atl'));
 
-  // Lines
   const drawLine = (key, color, width) => {
     const el = mk('polyline', {
       points: vis.map((d,i) => xS(i)+','+yS(d[key])).join(' '),
@@ -333,40 +330,89 @@ function drawPMC(series, days) {
   drawLine('ctl', C_CTL, '2.5');
   drawLine('atl', C_ATL, '2.5');
 
-  // Hover overlay
-  const overlay = mk('rect', { x:pL, y:pT, width:W-pL-pR, height:H-pT-pB, fill:'transparent' });
+  const overlay = mk('rect', {
+    x:pL, y:pT, width:W-pL-pR, height:H-pT-pB, fill:'transparent'
+  });
   overlay.style.cursor = 'crosshair';
-  const vLine = mk('line', { y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.3)', 'stroke-width':'1', 'stroke-dasharray':'3,2' });
+
+  const vLine = mk('line', {
+    y1:pT, y2:H-pB, stroke:'rgba(255,255,255,0.3)',
+    'stroke-width':'1', 'stroke-dasharray':'3,2'
+  });
   vLine.style.display = 'none';
-  const ctlDot = mk('circle', { r:'5', fill:C_CTL, stroke:'#0D1117', 'stroke-width':'2' }); ctlDot.style.display='none';
-  const atlDot = mk('circle', { r:'5', fill:C_ATL, stroke:'#0D1117', 'stroke-width':'2' }); atlDot.style.display='none';
+
+  const ctlDot = mk('circle', {
+    r:'5', fill:C_CTL, stroke:'#0D1117', 'stroke-width':'2'
+  });
+  ctlDot.style.display = 'none';
+
+  const atlDot = mk('circle', {
+    r:'5', fill:C_ATL, stroke:'#0D1117', 'stroke-width':'2'
+  });
+  atlDot.style.display = 'none';
+
   [vLine, ctlDot, atlDot, overlay].forEach(el => svg.appendChild(el));
 
   const tt = document.getElementById('load-tt');
   const showTip = (cx, cy, lx) => {
-    const idx = Math.max(0, Math.min(n-1, Math.round(((lx - pL) / (W-pL-pR)) * (n-1))));
+    const idx = Math.max(0, Math.min(
+      n-1, Math.round(((lx - pL) / (W-pL-pR)) * (n-1))
+    ));
     const pt = vis[idx];
-    vLine.setAttribute('x1', xS(idx)); vLine.setAttribute('x2', xS(idx)); vLine.style.display = '';
-    ctlDot.setAttribute('cx', xS(idx)); ctlDot.setAttribute('cy', yS(pt.ctl)); ctlDot.style.display = '';
-    atlDot.setAttribute('cx', xS(idx)); atlDot.setAttribute('cy', yS(pt.atl)); atlDot.style.display = '';
-    const dls = new Date(pt.date+'T12:00:00').toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    vLine.setAttribute('x1', xS(idx));
+    vLine.setAttribute('x2', xS(idx));
+    vLine.style.display = '';
+    ctlDot.setAttribute('cx', xS(idx));
+    ctlDot.setAttribute('cy', yS(pt.ctl));
+    ctlDot.style.display = '';
+    atlDot.setAttribute('cx', xS(idx));
+    atlDot.setAttribute('cy', yS(pt.atl));
+    atlDot.style.display = '';
+
+    const dls = new Date(pt.date+'T12:00:00').toLocaleDateString('en-GB', {
+      weekday:'short', day:'numeric', month:'short'
+    });
     tt.innerHTML = `
       <div class="ltt-date">${dls}</div>
-      <div class="ltt-row"><span style="color:${C_CTL}">Fitness (CTL)</span><span style="color:${C_CTL};font-weight:900">${pt.ctl.toFixed(1)}</span></div>
-      <div class="ltt-row"><span style="color:${C_ATL}">Fatigue (ATL)</span><span style="color:${C_ATL};font-weight:900">${pt.atl.toFixed(1)}</span></div>
-      <div class="ltt-row"><span style="color:#8898BB">Form (TSB)</span><span style="color:#8898BB;font-weight:900">${(pt.ctl - pt.atl > 0 ? '+' : '') + (pt.ctl - pt.atl).toFixed(1)}</span></div>`;
+      <div class="ltt-row">
+        <span style="color:${C_CTL}">Fitness (CTL)</span>
+        <span style="color:${C_CTL};font-weight:900">${pt.ctl.toFixed(1)}</span>
+      </div>
+      <div class="ltt-row">
+        <span style="color:${C_ATL}">Fatigue (ATL)</span>
+        <span style="color:${C_ATL};font-weight:900">${pt.atl.toFixed(1)}</span>
+      </div>
+      <div class="ltt-row">
+        <span style="color:#8898BB">Form (TSB)</span>
+        <span style="color:#8898BB;font-weight:900">
+          ${(pt.ctl - pt.atl > 0 ? '+' : '') + (pt.ctl - pt.atl).toFixed(1)}
+        </span>
+      </div>`;
     tt.style.left = Math.min(cx+14, window.innerWidth-180) + 'px';
     tt.style.top  = Math.max(8, cy-70) + 'px';
     tt.classList.add('vis');
   };
-  overlay.addEventListener('mousemove', e => { const r=svg.getBoundingClientRect(); showTip(e.clientX, e.clientY, e.clientX-r.left); });
-  overlay.addEventListener('touchmove', e => { e.preventDefault(); const r=svg.getBoundingClientRect(); const t=e.touches[0]; showTip(t.clientX, t.clientY, t.clientX-r.left); }, { passive:false });
-  overlay.addEventListener('mouseleave', () => { vLine.style.display='none'; ctlDot.style.display='none'; atlDot.style.display='none'; tt.classList.remove('vis'); });
+
+  overlay.addEventListener('mousemove', e => {
+    const r = svg.getBoundingClientRect();
+    showTip(e.clientX, e.clientY, e.clientX-r.left);
+  });
+  overlay.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const t = e.touches[0];
+    showTip(t.clientX, t.clientY, t.clientX-r.left);
+  }, { passive:false });
+  overlay.addEventListener('mouseleave', () => {
+    vLine.style.display = 'none';
+    ctlDot.style.display = 'none';
+    atlDot.style.display = 'none';
+    tt.classList.remove('vis');
+  });
 
   outer.appendChild(svg);
 }
 
-// ── Update big metric numbers ─────────────────────────────
 function updateMetrics(series, days) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -380,7 +426,7 @@ function updateMetrics(series, days) {
   const set = (idBig, idPrev, curVal, prevVal) => {
     const bigEl  = document.getElementById(idBig);
     const prevEl = document.getElementById(idPrev);
-    if (bigEl)  bigEl.textContent = Math.round(curVal);
+    if (bigEl) bigEl.textContent = Math.round(curVal);
     if (prevEl) {
       const diff = curVal - prevVal;
       const arrow = diff >= 0
@@ -393,7 +439,6 @@ function updateMetrics(series, days) {
   set('load-atl-big', 'load-atl-prev', today.atl, prev.atl);
 }
 
-// ── Public ────────────────────────────────────────────────
 export function loadSetPeriod(days) {
   ls.activeDays = days;
   document.querySelectorAll('.load-period-btn').forEach(b =>
@@ -473,7 +518,10 @@ export async function renderLoad() {
     } else {
       const ro = new ResizeObserver(entries => {
         for (const e of entries) {
-          if (e.contentRect.width > 0) { ro.disconnect(); drawPMC(ls.pmcSeries, ls.activeDays); }
+          if (e.contentRect.width > 0) {
+            ro.disconnect();
+            drawPMC(ls.pmcSeries, ls.activeDays);
+          }
         }
       });
       ro.observe(outer);
